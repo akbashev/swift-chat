@@ -16,7 +16,7 @@ or
 curl -d '{"name":"Test", "id":"Some pregenerated UUID"}' -H "Content-Type: application/json" -X POST http://localhost:8080/room
 ```
 
-it will return you a room info with an/the UUID.
+it will return you a room info with a/the UUID.
 
 2. Create user:
 ```
@@ -27,9 +27,9 @@ or
 curl -d '{"name":"Test", "id":"Some pregenerated UUID"}' -H "Content-Type: application/json" -X POST http://localhost:8080/yser
 ```
 
-it will return you a user info with an/the UUID.
+it will return you a user info with a/the UUID.
 
-3. Connect to room `'ws://localhost:8080/chat?room_id=room_UUID&user_id=user_UUID'` and start chating.
+3. Connect to the room with provided room id and user id `'ws://localhost:8080/chat?room_id=room_UUID&user_id=user_UUID'` and start chating.
 
 ## TODO:
 1. Check if actors are cleaned from memory when websocket disconnects.
