@@ -53,27 +53,7 @@ public struct Server {
     /// 4. Create a frontend actor and wait actorSystem for termination
     try await Frontend(
       actorSystem: frontendNode,
-      api: .init(
-        createUser: { request in
-          let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-          let info = UserInfo(id: id, name: request.name)
-          try await store.save(.user(info))
-          return info.response
-        },
-        creteRoom: { request in
-          let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-          let info = RoomInfo(id: id, name: request.name)
-          try await store.save(.room(info))
-          return info.response
-        },
-        chat: { chatConnection in
-          Task {
-            for await connection in chatConnection {
-              await connectionManager.handle(connection)
-            }
-          }
-        }
-      )
+      api: connectionManager.api
     ).actorSystem
       .terminated
   }
@@ -93,23 +73,5 @@ public struct Server {
         
       }
     }
-  }
-}
-
-fileprivate extension UserInfo {
-  var response: Api.CreateUserResponse {
-    .init(
-      id: self.id.rawValue,
-      name: self.name
-    )
-  }
-}
-
-fileprivate extension RoomInfo {
-  var response: Api.CreateRoomResponse {
-    .init(
-      id: self.id.rawValue,
-      name: self.name
-    )
   }
 }

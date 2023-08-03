@@ -7,10 +7,41 @@ import FoundationEssentials
 
 actor ConnectionManager {
   
+  enum Error: Swift.Error {
+    case noConnection
+  }
+  
   let roomsNode: ClusterSystem
   let usersNode: ClusterSystem
   let roomsManager: RoomsManager
   let store: Store
+  
+  lazy var api: Api = {
+    .init(
+      createUser: { [weak self] request in
+        guard let self else { throw Error.noConnection }
+        let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
+        let info = UserInfo(id: id, name: request.name)
+        try await self.store.save(.user(info))
+        return info.response
+      },
+      creteRoom: { [weak self] request in
+        guard let self else { throw Error.noConnection }
+        let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
+        let info = RoomInfo(id: id, name: request.name)
+        try await self.store.save(.room(info))
+        return info.response
+      },
+      chat: { chatConnection in
+        Task { [weak self] in
+          guard let self else { throw Error.noConnection }
+          for await connection in chatConnection {
+            await self.handle(connection)
+          }
+        }
+      }
+    )
+  }()
   
   func handle(
     _ connection: Api.ChatConnection
@@ -108,5 +139,23 @@ actor ConnectionManager {
         try await self.roomsManager.findRooms()
       }
     }
+  }
+}
+
+fileprivate extension UserInfo {
+  var response: Api.CreateUserResponse {
+    .init(
+      id: self.id.rawValue,
+      name: self.name
+    )
+  }
+}
+
+fileprivate extension RoomInfo {
+  var response: Api.CreateRoomResponse {
+    .init(
+      id: self.id.rawValue,
+      name: self.name
+    )
   }
 }
