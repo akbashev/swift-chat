@@ -4,12 +4,12 @@ import Plugins
 import Models
 import Store
 
-public distributed actor User: Observable {
+public distributed actor User {
   
   public typealias ActorSystem = ClusterSystem
   
   private var state: State
-  private lazy var observer: Observer<Output> = .init()
+  private let reply: Reply
   
   // API
   distributed public func send(message: Message, to room: Room) async throws {
@@ -31,13 +31,11 @@ public distributed actor User: Observable {
   distributed func notify(_ message: Message, user: User, from room: Room) {
     Task {
       let userInfo = try await user.getUserInfo()
-      try await self.observer.resolve(
-        with: .success(
-          .message(
-            message,
-            user: userInfo,
-            room: room.getRoomInfo()
-          )
+      try await self.reply.send(
+        Output.message(
+          message,
+          user: userInfo,
+          room: room.getRoomInfo()
         )
       )
     }
@@ -47,20 +45,18 @@ public distributed actor User: Observable {
     self.state.info
   }
   
-  distributed public func subscribe() async throws -> Output {
-    try await self.observer.value
-  }
-  
   public init(
     actorSystem: ClusterSystem,
     userId: UserInfo.ID,
-    store: Store
+    store: Store,
+    reply: Reply
   ) async throws {
     self.actorSystem = actorSystem
     let userInfo = try await store.getUser(with: userId)
     self.state = .init(
       info: userInfo
     )
+    self.reply = reply
     await self.actorSystem.receptionist.checkIn(self, with: .users)
   }
   
@@ -99,6 +95,14 @@ public distributed actor User: Observable {
 }
 
 extension User {
+  
+  public struct Reply {
+    public let send: @Sendable (Output) async throws -> ()
+    
+    public init(send: @escaping @Sendable (Output) async throws -> Void) {
+      self.send = send
+    }
+  }
   
   public enum Error: Swift.Error {
     case roomIsNotAvailable

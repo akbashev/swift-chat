@@ -35,4 +35,3 @@ it will return you a user info with an/the UUID.
 1. Check if actors are cleaned from memory when websocket disconnects.
 2. Event sourcing with proper database.
 3. Clustering with fault tolerance. Check different scenarios like room node crashes and etc.
-4. Rewrite Observable.

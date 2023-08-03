@@ -35,10 +35,36 @@ actor ConnectionManager {
       let user = try await User(
         actorSystem: usersNode,
         userId: .init(rawValue: connection.userId),
-        store: store
+        store: store,
+        reply: .init(
+          send: { output in
+            /// 3. Start listening for messages from other users
+            switch output {
+              case let .message(message, userInfo, roomInfo):
+                switch message {
+                  case .message(let message):
+                    try await ws.write(
+                      .text("\(userInfo.name): \(message)")
+                    )
+                  case .join:
+                    try await ws.write(
+                      .text("\(userInfo.name) just connected to the room \(roomInfo.name)")
+                    )
+                  case .leave:
+                    try await ws.write(
+                      .text("\(userInfo.name) just left the room \(roomInfo.name)")
+                    )
+                  case .disconnect:
+                    try await ws.write(
+                      .text("\(userInfo.name) just disconnected from the room \(roomInfo.name)")
+                    )
+                }
+            }
+          }
+        )
       )
       
-      /// 3. Fetch all current room messages
+      /// 4. Fetch all current room messages
       let messages = (try? await room.getMessages()) ?? []
       for message in messages {
         switch message.message {
@@ -51,7 +77,7 @@ actor ConnectionManager {
         }
       }
       
-      /// 4. Join to the Room and start sending user messages
+      /// 5. Join to the Room and start sending user messages
       Task {
         try await user.send(message: .join, to: room)
         for await message in ws.readStream() {
@@ -60,33 +86,6 @@ actor ConnectionManager {
               try await user.send(message: .message(string), to: room)
             case .binary(let byteBuffer):
               break
-          }
-        }
-      }
-      
-      /// 5. Start listening for messages from other users
-      Task {
-        for await result in user.stream {
-          switch result {
-            case let .message(message, userInfo, roomInfo):
-              switch message {
-                case .message(let message):
-                  try await ws.write(
-                    .text("\(userInfo.name): \(message)")
-                  )
-                case .join:
-                  try await ws.write(
-                    .text("\(userInfo.name) just connected to the room \(roomInfo.name)")
-                  )
-                case .leave:
-                  try await ws.write(
-                    .text("\(userInfo.name) just left the room \(roomInfo.name)")
-                  )
-                case .disconnect:
-                  try await ws.write(
-                    .text("\(userInfo.name) just disconnected from the room \(roomInfo.name)")
-                  )
-              }
           }
         }
       }
