@@ -79,19 +79,6 @@ public distributed actor User {
   private func check(room: Room) throws {
     guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable } // throw
   }
-  
-  deinit {
-    let rooms = self.state.rooms
-    Task {
-      await withThrowingTaskGroup(of: Void.self) { group in
-        for room in rooms {
-          group.addTask {
-            try await room.message(.disconnect, from: self)
-          }
-        }
-      }
-    }
-  }
 }
 
 extension User {

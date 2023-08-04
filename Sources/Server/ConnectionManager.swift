@@ -61,7 +61,7 @@ actor ConnectionManager {
           )
         }
       }()
-      
+    
       /// 2. Create user for that connection
       let user = try await User(
         actorSystem: usersNode,
@@ -95,7 +95,14 @@ actor ConnectionManager {
         )
       )
       
-      /// 4. Fetch all current room messages
+      /// 4. Listen for disconnection
+      ws.onClose { _ in
+        Task {
+          try? await user.send(message: .disconnect, to: room)
+        }
+      }
+      
+      /// 5. Fetch all current room messages
       let messages = (try? await room.getMessages()) ?? []
       for message in messages {
         switch message.message {
@@ -108,7 +115,7 @@ actor ConnectionManager {
         }
       }
       
-      /// 5. Join to the Room and start sending user messages
+      /// 6. Join to the Room and start sending user messages
       Task {
         try await user.send(message: .join, to: room)
         for await message in ws.readStream() {
