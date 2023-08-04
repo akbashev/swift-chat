@@ -22,10 +22,10 @@ public distributed actor Room {
       case .join:
         self.state.users.insert(user)
         // TODO: add logic to this messages
-      case .message,
-          .disconnect:
+      case .message:
         try check(user: user)
-      case .leave:
+      case .leave, .disconnect:
+        try check(user: user)
         self.state.users.remove(user)
     }
     self.notifyOthersAbout(
