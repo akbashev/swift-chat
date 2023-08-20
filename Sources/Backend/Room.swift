@@ -1,24 +1,25 @@
 import Distributed
 import DistributedCluster
-import Models
-import Store
+import EventSource
+import FoundationEssentials
 
 public distributed actor Room {
   
   public typealias ActorSystem = ClusterSystem
   
   private var state: State
-  private var store: Store
+  private var eventSource: EventSource<MessageInfo>
   
-  distributed func message(_ message: Message, from user: User) async throws {
-    let message: MessageInfo = try await MessageInfo(
-      room: self.state.info,
-      user: user.getUserInfo(),
+  distributed func message(_ message: Message, from user: User) async throws -> MessageInfo {
+    let messageInfo: MessageInfo = try await MessageInfo(
+      createdAt: Date(),
+      roomId: self.state.info.id,
+      userId: user.getUserInfo().id,
       message: message
     )
-    try await self.store.save(.message(message))
-    self.state.messages.append(message)
-    switch message.message {
+    try await self.eventSource.save(messageInfo)
+    self.state.messages.append(messageInfo)
+    switch message {
       case .join:
         self.state.users.insert(user)
         // TODO: add logic to this messages
@@ -29,9 +30,10 @@ public distributed actor Room {
         self.state.users.remove(user)
     }
     self.notifyOthersAbout(
-      message: message.message,
+      message: messageInfo,
       from: user
     )
+    return messageInfo
   }
   
   distributed public func getRoomInfo() -> RoomInfo {
@@ -44,18 +46,21 @@ public distributed actor Room {
   
   public init(
     actorSystem: ClusterSystem,
-    roomId: RoomInfo.ID,
-    store: Store
+    roomInfo: RoomInfo,
+    eventSource: EventSource<MessageInfo>
   ) async throws {
     self.actorSystem = actorSystem
-    let roomInfo = try await store.getRoom(with: roomId)
-    let messages = try await store.getMessages(for: roomId)
+    let messages = try await eventSource
+      .get()
+      .filter({ $0.roomId == roomInfo.id })
     self.state = .init(
       info: roomInfo,
       messages: messages
     )
-    self.store = store
-    await actorSystem.receptionist.checkIn(self, with: .rooms)
+    self.eventSource = eventSource
+    await actorSystem
+      .receptionist
+      .checkIn(self, with: .rooms)
   }
   
   private func check(user: User) throws {
@@ -63,7 +68,7 @@ public distributed actor Room {
   }
   
   // non-structured
-  private func notifyOthersAbout(message: Message, from user: User) {
+  private func notifyOthersAbout(message: MessageInfo, from user: User) {
     Task {
       await withThrowingTaskGroup(of: Void.self) { group in
         for other in self.state.users where user != other {

@@ -1,9 +1,10 @@
 import DistributedCluster
-import Store
 import Backend
-import Models
 import Frontend
 import FoundationEssentials
+import NIOCore
+import EventSource
+import Persistence
 
 actor ConnectionManager {
   
@@ -14,23 +15,46 @@ actor ConnectionManager {
   let roomsNode: ClusterSystem
   let usersNode: ClusterSystem
   let roomsManager: RoomsManager
-  let store: Store
-  
+  let persistence: Persistence
+  let eventSource: EventSource<MessageInfo>
+
   lazy var api: Api = {
     .init(
       createUser: { [weak self] request in
         guard let self else { throw Error.noConnection }
+        let name = request.name
         let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-        let info = UserInfo(id: id, name: request.name)
-        try await self.store.save(.user(info))
-        return info.response
+        try await self.persistence.save(
+          .user(
+            .init(
+              id: id,
+              createdAt: .init(),
+              name: request.name
+            )
+          )
+        )
+        return UserResponse(
+          id: id,
+          name: name
+        )
       },
       creteRoom: { [weak self] request in
         guard let self else { throw Error.noConnection }
+        let name = request.name
         let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-        let info = RoomInfo(id: id, name: request.name)
-        try await self.store.save(.room(info))
-        return info.response
+        try await self.persistence.save(
+          .room(
+            .init(
+              id: id,
+              createdAt: .init(),
+              name: request.name
+            )
+          )
+        )
+        return RoomResponse(
+          id: id,
+          name: name
+        )
       },
       chat: { chatConnection in
         Task { [weak self] in
@@ -44,11 +68,13 @@ actor ConnectionManager {
   }()
   
   func handle(
-    _ connection: Api.ChatConnection
+    _ connection: ChatConnection
   ) async {
     let ws = connection.ws
     do {
       /// 1. Find room
+      let roomModel = try await persistence.getRoom(with: connection.roomId)
+      let roomInfo = RoomInfo(id: roomModel.id, name: roomModel.name)
       let room: Room = try await {
         do {
           return try await roomsManager
@@ -56,40 +82,37 @@ actor ConnectionManager {
         } catch {
           return try await Room(
             actorSystem: roomsNode,
-            roomId: .init(rawValue: connection.roomId),
-            store: store
+            roomInfo: roomInfo,
+            eventSource: eventSource
           )
         }
       }()
     
       /// 2. Create user for that connection
+      let userModel = try await persistence.getUser(with: connection.userId)
+      let userInfo = UserInfo(
+        id: userModel.id,
+        name: userModel.name
+      )
       let user = try await User(
         actorSystem: usersNode,
-        userId: .init(rawValue: connection.userId),
-        store: store,
+        userInfo: userInfo,
         reply: .init(
           send: { output in
             /// 3. Start listening for messages from other users
             switch output {
-              case let .message(message, userInfo, roomInfo):
-                switch message {
-                  case .message(let message):
-                    try await ws.write(
-                      .text("\(userInfo.name): \(message)")
+              case let .message(message, userInfo, _):
+                var data = ByteBuffer()
+                _ = try? data.writeJSONEncodable(
+                  [
+                    ChatResponse(
+                      createdAt: message.createdAt,
+                      user: .init(userInfo),
+                      message: .init(message.message)
                     )
-                  case .join:
-                    try await ws.write(
-                      .text("\(userInfo.name) just connected to the room \(roomInfo.name)")
-                    )
-                  case .leave:
-                    try await ws.write(
-                      .text("\(userInfo.name) just left the room \(roomInfo.name)")
-                    )
-                  case .disconnect:
-                    try await ws.write(
-                      .text("\(userInfo.name) just disconnected from the room \(roomInfo.name)")
-                    )
-                }
+                  ]
+                )
+                try await ws.write(.binary(data))
             }
           }
         )
@@ -103,27 +126,82 @@ actor ConnectionManager {
       }
       
       /// 5. Fetch all current room messages
-      let messages = (try? await room.getMessages()) ?? []
-      for message in messages {
+    let messages = (try? await room.getMessages()) ?? []
+      let users = await withTaskGroup(of: UserModel?.self) { group in
+        for message in messages {
+          switch message.message {
+            case .message:
+              group.addTask {
+                try? await self.persistence.getUser(with: message.userId.rawValue)
+              }
+            default:
+              break
+          }
+        }
+        return await group
+          .reduce(into: [UserModel]()) { partialResult, response in
+            guard let response else { return }
+            partialResult.append(response)
+        }
+      }
+      let responses = messages.compactMap { message -> ChatResponse? in
         switch message.message {
           case .message(let text):
-            try await ws.write(
-              .text("\(message.user.name): \(text)")
+            guard let userModel = users.first(where: { $0.id == message.userId.rawValue }) else { return .none }
+            return ChatResponse(
+              createdAt: message.createdAt,
+              user: .init(userModel),
+              message: .init(.message(text))
             )
           default:
-            break
+            return .none
         }
       }
       
+      var data = ByteBuffer()
+      _ = try? data.writeJSONEncodable(
+        responses
+      )
+      try? await ws.write(.binary(data))
+      
       /// 6. Join to the Room and start sending user messages
       Task {
-        try await user.send(message: .join, to: room)
+        let messageInfo = try await user.send(message: .join, to: room)
+        var data = ByteBuffer()
+        _ = try? data.writeJSONEncodable(
+          [
+            ChatResponse(
+              createdAt: messageInfo.createdAt,
+              user: .init(userInfo),
+              message: .init(messageInfo.message)
+            )
+          ]
+        )
+        try await ws.write(.binary(data))
         for await message in ws.readStream() {
           switch message {
             case .text(let string):
-              try await user.send(message: .message(string), to: room)
-            case .binary(let byteBuffer):
-              break
+              try? await user.send(message: .message(string), to: room)
+            case .binary(var data):
+              do {
+                guard let messages = try data.readJSONDecodable([Message].self, length: data.readableBytes) else { return }
+                for message in messages {
+                  let messageInfo = try await user.send(message: message, to: room)
+                  var data = ByteBuffer()
+                  _ = try? data.writeJSONEncodable(
+                    [
+                      ChatResponse(
+                        createdAt: messageInfo.createdAt,
+                        user: .init(userInfo),
+                        message: .init(messageInfo.message)
+                      )
+                    ]
+                  )
+                  try await ws.write(.binary(data))
+                }
+              } catch {
+                usersNode.log.error("\(error)")
+              }
           }
         }
       }
@@ -135,12 +213,14 @@ actor ConnectionManager {
   init(
     roomsNode: ClusterSystem,
     usersNode: ClusterSystem,
-    store: Store
+    persistence: Persistence,
+    eventSource: EventSource<MessageInfo>
   ) {
     self.roomsNode = roomsNode
     self.usersNode = usersNode
     self.roomsManager = RoomsManager(actorSystem: roomsNode)
-    self.store = store
+    self.persistence = persistence
+    self.eventSource = eventSource
     defer {
       Task {
         try await self.roomsManager.findRooms()
@@ -149,20 +229,45 @@ actor ConnectionManager {
   }
 }
 
-fileprivate extension UserInfo {
-  var response: Api.CreateUserResponse {
-    .init(
-      id: self.id.rawValue,
-      name: self.name
+fileprivate extension ChatResponse.Message {
+  init(_ message: Backend.Message) {
+    switch message {
+      case .join:
+        self = .join
+      case .message(let string):
+        self = .message(string)
+      case .leave:
+        self = .leave
+      case .disconnect:
+        self = .disconnect
+    }
+  }
+}
+
+fileprivate extension UserResponse {
+  init(_ userInfo: UserInfo) {
+    self.init(
+      id: userInfo.id.rawValue,
+      name: userInfo.name
     )
   }
 }
 
-fileprivate extension RoomInfo {
-  var response: Api.CreateRoomResponse {
-    .init(
-      id: self.id.rawValue,
-      name: self.name
+fileprivate extension UserResponse {
+  init(_ userModel: UserModel) {
+    self.init(
+      id: userModel.id,
+      name: userModel.name
+    )
+  }
+}
+
+
+fileprivate extension RoomResponse {
+  init(_ roomInfo: RoomInfo) {
+    self.init(
+      id: roomInfo.id.rawValue,
+      name: roomInfo.name
     )
   }
 }

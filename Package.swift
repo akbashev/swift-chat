@@ -7,21 +7,44 @@ let package = Package(
   name: "SimpleChat",
   platforms: [
     .macOS("13.3"),
+    .iOS(.v16),
+  ],
+  products: [
+      .library(name: "App", targets: ["App"])
   ],
   dependencies: [
+    // Apple
     .package(url: "https://github.com/apple/swift-distributed-actors.git", branch: "main"),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
+    .package(url: "https://github.com/apple/swift-foundation.git", .branch("main")),
+    // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "1.0.0"),
     .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-foundation.git", .branch("main"))
+    // Pointfreeco
+    .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.0.0"),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
   ],
   targets: [
     .target(
+      name: "App",
+      dependencies: [
+        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+        .product(name: "Dependencies", package: "swift-dependencies"),
+      ]
+    ),
+    .target(
       name: "Backend",
       dependencies: [
-        "Models",
-        "Store",
+        "EventSource",
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+        .product(name: "FoundationEssentials", package: "swift-foundation"),
+      ]
+    ),
+    .target(
+      name: "EventSource",
+      dependencies: [
+        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+        .product(name: "FoundationEssentials", package: "swift-foundation"),
       ]
     ),
     .target(
@@ -35,8 +58,9 @@ let package = Package(
       ]
     ),
     .target(
-      name: "Models",
+      name: "Persistence",
       dependencies: [
+        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
       ]
     ),
@@ -45,14 +69,7 @@ let package = Package(
       dependencies: [
         "Backend",
         "Frontend",
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-      ]
-    ),
-    .target(
-      name: "Store",
-      dependencies: [
-        "Models",
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+        "Persistence",
       ]
     ),
   ]

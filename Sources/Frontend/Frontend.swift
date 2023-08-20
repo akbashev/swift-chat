@@ -2,7 +2,6 @@ import HummingbirdFoundation
 import HummingbirdWebSocket
 import Distributed
 import DistributedCluster
-import FoundationEssentials
 
 public distributed actor Frontend {
   
@@ -43,50 +42,13 @@ public distributed actor Frontend {
 /// https://www.pointfree.co/collections/protocol-witnesses/alternatives-to-protocols
 public struct Api: Sendable {
   
-  public struct ChatConnection {
-    public let userId: UUID
-    public let roomId: UUID
-    // TODO: Hide HBWebSocket under new abstraction
-    public let ws: HBWebSocket
-  }
-  
-  public struct CreateUserRequest: Sendable, Equatable, HBResponseCodable {
-    public let id: String?
-    public let name: String
-  }
-  
-  public struct CreateUserResponse: Sendable, Equatable, HBResponseCodable {
-    public let id: UUID
-    public let name: String
-    
-    public init(id: UUID, name: String) {
-      self.id = id
-      self.name = name
-    }
-  }
-  
-  public struct CreateRoomRequest: Sendable, Equatable, HBResponseCodable {
-    public let id: String?
-    public let name: String
-  }
-  
-  public struct CreateRoomResponse: Sendable, Equatable, HBResponseCodable {
-    public let id: UUID
-    public let name: String
-    
-    public init(id: UUID, name: String) {
-      self.id = id
-      self.name = name
-    }
-  }
-  
-  let createUser: @Sendable (CreateUserRequest) async throws -> (CreateUserResponse)
-  let creteRoom: @Sendable (CreateRoomRequest) async throws -> (CreateRoomResponse)
+  let createUser: @Sendable (CreateUserRequest) async throws -> (UserResponse)
+  let creteRoom: @Sendable (CreateRoomRequest) async throws -> (RoomResponse)
   let chat: @Sendable (AsyncStream<ChatConnection>) -> ()
   
   public init(
-    createUser: @Sendable @escaping (CreateUserRequest) async throws -> (CreateUserResponse),
-    creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> (CreateRoomResponse),
+    createUser: @Sendable @escaping (CreateUserRequest) async throws -> (UserResponse),
+    creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> (RoomResponse),
     chat: @Sendable @escaping (AsyncStream<ChatConnection>) -> ()
   ) {
     self.createUser = createUser

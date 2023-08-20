@@ -2,9 +2,9 @@ import Distributed
 import DistributedCluster
 import Frontend
 import Backend
-import Store
 import FoundationEssentials
-import Models
+import Persistence
+import EventSource
 
 @main
 public struct Server {
@@ -39,7 +39,11 @@ public struct Server {
     try await ensureCluster([frontendNode, sourceNode, roomsNode, usersNode], within: .seconds(10))
     
     /// 3. Creating all needed server actors
-    let store = try Store(
+    let persistence = Persistence(
+      actorSystem: sourceNode
+    )
+    
+    let eventSource = try EventSource<MessageInfo>(
       actorSystem: sourceNode,
       type: .memory
     )
@@ -47,7 +51,8 @@ public struct Server {
     let connectionManager = ConnectionManager(
       roomsNode: roomsNode,
       usersNode: usersNode,
-      store: store
+      persistence: persistence,
+      eventSource: eventSource
     )
     
     /// 4. Create a frontend actor and wait actorSystem for termination

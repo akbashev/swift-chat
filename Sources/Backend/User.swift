@@ -1,8 +1,5 @@
 import Distributed
 import DistributedCluster
-import Plugins
-import Models
-import Store
 
 public distributed actor User {
   
@@ -12,23 +9,21 @@ public distributed actor User {
   private let reply: Reply
   
   // API
-  distributed public func send(message: Message, to room: Room) async throws {
+  distributed public func send(message: Message, to room: Room) async throws -> MessageInfo {
     switch message {
       case .join:
         try await self.join(room: room)
       case .message(let string):
         try await room.message(.message(string), from: self)
       case .leave:
-        try self.check(room: room)
         try await self.leave(room: room)
       case .disconnect:
-        try self.check(room: room)
-        self.disconnect(room: room)
+        try await self.disconnect(room: room)
     }
   }
     
   // Room
-  distributed func notify(_ message: Message, user: User, from room: Room) {
+  distributed func notify(_ message: MessageInfo, user: User, from room: Room) {
     Task {
       let userInfo = try await user.getUserInfo()
       try await self.reply.send(
@@ -47,12 +42,10 @@ public distributed actor User {
   
   public init(
     actorSystem: ClusterSystem,
-    userId: UserInfo.ID,
-    store: Store,
+    userInfo: UserInfo,
     reply: Reply
   ) async throws {
     self.actorSystem = actorSystem
-    let userInfo = try await store.getUser(with: userId)
     self.state = .init(
       info: userInfo
     )
@@ -60,24 +53,22 @@ public distributed actor User {
     await self.actorSystem.receptionist.checkIn(self, with: .users)
   }
   
-  private func join(room: Room) async throws {
-    try await room.message(.join, from: self)
+  private func join(room: Room) async throws -> MessageInfo {
+    let info = try await room.message(.join, from: self)
     self.state.rooms.insert(room)
+    return info
   }
   
-  private func leave(room: Room) async throws {
-    try await room.message(.leave, from: self)
+  private func leave(room: Room) async throws -> MessageInfo {
+    guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
+    let info = try await room.message(.leave, from: self)
     self.state.rooms.remove(room)
+    return info
   }
   
-  private func disconnect(room: Room) {
-    Task {
-      try await room.message(.disconnect, from: self)
-    }
-  }
-  
-  private func check(room: Room) throws {
-    guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable } // throw
+  private func disconnect(room: Room) async throws -> MessageInfo {
+    guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
+    return try await room.message(.disconnect, from: self)
   }
 }
 
@@ -96,7 +87,7 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(Message, user: UserInfo, room: RoomInfo)
+    case message(MessageInfo, user: UserInfo, room: RoomInfo)
   }
 
   private struct State: Equatable {

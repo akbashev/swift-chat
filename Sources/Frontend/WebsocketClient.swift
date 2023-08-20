@@ -13,7 +13,7 @@ class WebsocketClient {
     api.chat(chat())
   }
   
-  func chat() -> AsyncStream<Api.ChatConnection> {
+  func chat() -> AsyncStream<ChatConnection> {
     .init { continuation in
       self.ws.on(
         "/chat",

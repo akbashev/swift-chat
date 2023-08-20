@@ -1,6 +1,5 @@
 import Distributed
 import DistributedCluster
-import Models
 
 distributed public actor RoomsManager: LifecycleWatch, ClusterSingleton {
 
