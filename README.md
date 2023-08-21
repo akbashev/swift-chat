@@ -4,6 +4,8 @@ A simple chat made to play with [Distributed actors](https://www.swift.org/blog/
 
 ## Run
 
+Swift 5.9 is needed (was playing with new Swift Foundations).
+
 1. Open `App/swift-chat.xcodeproj`
 
 2. Run `Server` scheme.
