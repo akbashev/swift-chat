@@ -10,7 +10,7 @@
 		716029612A9287B100D2B0B0 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716029602A9287B100D2B0B0 /* Main.swift */; };
 		716029652A9287B600D2B0B0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 716029642A9287B600D2B0B0 /* Assets.xcassets */; };
 		716029692A9287B600D2B0B0 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 716029682A9287B600D2B0B0 /* Preview Assets.xcassets */; };
-		716029722A9287E900D2B0B0 /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 716029712A9287E900D2B0B0 /* App */; };
+		71C9D3BC2A940C4100D57B59 /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 71C9D3BB2A940C4100D57B59 /* App */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -19,8 +19,8 @@
 		716029642A9287B600D2B0B0 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		716029662A9287B600D2B0B0 /* swift_chat.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = swift_chat.entitlements; sourceTree = "<group>"; };
 		716029682A9287B600D2B0B0 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
-		7160296F2A9287DD00D2B0B0 /* SimpleChat */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SimpleChat; path = ..; sourceTree = "<group>"; };
 		716029732A92896100D2B0B0 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
+		71C9D3BA2A940BEE00D57B59 /* swift-chat */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = "swift-chat"; path = ..; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -28,7 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				716029722A9287E900D2B0B0 /* App in Frameworks */,
+				71C9D3BC2A940C4100D57B59 /* App in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -38,8 +38,8 @@
 		716029542A9287B100D2B0B0 = {
 			isa = PBXGroup;
 			children = (
-				7160296F2A9287DD00D2B0B0 /* SimpleChat */,
 				7160295F2A9287B100D2B0B0 /* swift-chat */,
+				71C9D3BA2A940BEE00D57B59 /* swift-chat */,
 				7160295E2A9287B100D2B0B0 /* Products */,
 				716029702A9287E900D2B0B0 /* Frameworks */,
 			);
@@ -97,7 +97,7 @@
 			);
 			name = "swift-chat";
 			packageProductDependencies = (
-				716029712A9287E900D2B0B0 /* App */,
+				71C9D3BB2A940C4100D57B59 /* App */,
 			);
 			productName = "swift-chat";
 			productReference = 7160295D2A9287B100D2B0B0 /* swift-chat.app */;
@@ -374,7 +374,7 @@
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		716029712A9287E900D2B0B0 /* App */ = {
+		71C9D3BB2A940C4100D57B59 /* App */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = App;
 		};

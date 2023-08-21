@@ -4,7 +4,7 @@
 import PackageDescription
 
 let package = Package(
-  name: "SimpleChat",
+  name: "swift-chat",
   platforms: [
     .macOS("13.3"),
     .iOS("16.4"),
