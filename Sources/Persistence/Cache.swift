@@ -20,16 +20,23 @@ actor Cache: Persistable {
     }
   }
   
-  func getUser(with id: UUID) throws -> UserModel {
+  func getUser(id: UUID) throws -> UserModel {
     guard let userInfo = data.users.first(where: { $0.id == id }) else {
       throw Persistence.Error.userMissing(id: id)
     }
     return userInfo
   }
   
-  func getRoom(with id: UUID) throws -> RoomModel {
+  func getRoom(id: UUID) throws -> RoomModel {
     guard let roomInfo = data.rooms.first(where: { $0.id == id }) else {
       throw Persistence.Error.roomMissing(id: id)
+    }
+    return roomInfo
+  }
+  
+  func getRoom(name: String) throws -> RoomModel {
+    guard let roomInfo = data.rooms.first(where: { $0.name == name }) else {
+      throw Persistence.Error.roomMissing(name: name)
     }
     return roomInfo
   }

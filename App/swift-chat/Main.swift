@@ -5,14 +5,16 @@ import App
 struct Main: SwiftUI.App {
   var body: some Scene {
     WindowGroup {
-      WebSocketView(
-        store: .init(
-          initialState: .init(),
-          reducer: {
-            WebSocket()
-          }
+      NavigationStack {
+        EntranceView(
+          store: .init(
+            initialState: .init(),
+            reducer: {
+              Entrance()
+            }
+          )
         )
-      )
+      }
     }
   }
 }

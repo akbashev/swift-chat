@@ -56,6 +56,15 @@ actor ConnectionManager {
           name: name
         )
       },
+      getRoom: { [weak self] request in
+        guard let self else { throw Error.noConnection }
+        let name = request.name
+        let model = try await self.persistence.getRoom(name: name)
+        return RoomResponse(
+          id: model.id,
+          name: model.name
+        )
+      },
       chat: { chatConnection in
         Task { [weak self] in
           guard let self else { throw Error.noConnection }
@@ -73,7 +82,7 @@ actor ConnectionManager {
     let ws = connection.ws
     do {
       /// 1. Find room
-      let roomModel = try await persistence.getRoom(with: connection.roomId)
+      let roomModel = try await persistence.getRoom(id: connection.roomId)
       let roomInfo = RoomInfo(id: roomModel.id, name: roomModel.name)
       let room: Room = try await {
         do {
@@ -89,7 +98,7 @@ actor ConnectionManager {
       }()
     
       /// 2. Create user for that connection
-      let userModel = try await persistence.getUser(with: connection.userId)
+      let userModel = try await persistence.getUser(id: connection.userId)
       let userInfo = UserInfo(
         id: userModel.id,
         name: userModel.name
@@ -132,7 +141,7 @@ actor ConnectionManager {
           switch message.message {
             case .message:
               group.addTask {
-                try? await self.persistence.getUser(with: message.userId.rawValue)
+                try? await self.persistence.getUser(id: message.userId.rawValue)
               }
             default:
               break

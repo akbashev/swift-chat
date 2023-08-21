@@ -7,7 +7,7 @@ let package = Package(
   name: "SimpleChat",
   platforms: [
     .macOS("13.3"),
-    .iOS(.v16),
+    .iOS("16.4"),
   ],
   products: [
       .library(name: "App", targets: ["App"])
@@ -29,7 +29,7 @@ let package = Package(
       name: "App",
       dependencies: [
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-        .product(name: "Dependencies", package: "swift-dependencies"),
+        .product(name: "Dependencies", package: "swift-dependencies")
       ]
     ),
     .target(

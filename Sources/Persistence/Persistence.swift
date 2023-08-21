@@ -4,8 +4,9 @@ import FoundationEssentials
 
 protocol Persistable {
   func save(input: Persistence.Input) async
-  func getRoom(with id: UUID) async throws -> RoomModel
-  func getUser(with id: UUID) async throws -> UserModel
+  func getRoom(id: UUID) async throws -> RoomModel
+  func getRoom(name: String) async throws -> RoomModel
+  func getUser(id: UUID) async throws -> UserModel
 }
 
 distributed public actor Persistence: ClusterSingleton {
@@ -14,6 +15,7 @@ distributed public actor Persistence: ClusterSingleton {
   
   public enum Error: Swift.Error {
     case roomMissing(id: UUID)
+    case roomMissing(name: String)
     case userMissing(id: UUID)
   }
   
@@ -30,12 +32,16 @@ distributed public actor Persistence: ClusterSingleton {
     await self.cache.save(input: input)
   }
   
-  distributed public func getUser(with id: UUID) async throws -> UserModel {
-    try await self.cache.getUser(with: id)
+  distributed public func getUser(id: UUID) async throws -> UserModel {
+    try await self.cache.getUser(id: id)
   }
   
-  distributed public func getRoom(with id: UUID) async throws -> RoomModel {
-    try await self.cache.getRoom(with: id)
+  distributed public func getRoom(id: UUID) async throws -> RoomModel {
+    try await self.cache.getRoom(id: id)
+  }
+  
+  distributed public func getRoom(name: String) async throws -> RoomModel {
+    try await self.cache.getRoom(name: name)
   }
   
   public init(

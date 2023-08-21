@@ -20,6 +20,12 @@ class HttpClient {
       else { throw HBHTTPError(.badRequest) }
       return try await api.creteRoom(room)
     }
+    self.router.get("room") { req in
+      guard let roomName = req.uri
+        .queryParameters
+        .get("name", as: String.self) else { throw HBHTTPError(.badRequest) }
+      return try await api.getRoom(.init(id: .none, name: roomName))
+    }
   }
   
   init(
