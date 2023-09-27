@@ -5,9 +5,22 @@ import Backend
 import FoundationEssentials
 import Persistence
 import EventSource
+import Logging
+import PostgresNIO
+import Hummingbird
 
 @main
 public struct Server {
+  
+  enum Error: Swift.Error, CustomStringConvertible {
+    case environmentNotSet
+    
+    var description: String {
+      switch self {
+      case .environmentNotSet: "Environment not set"
+      }
+    }
+  }
   
   public static func main() async throws {
     /// 1. Creating nodes
@@ -39,13 +52,39 @@ public struct Server {
     try await ensureCluster([frontendNode, sourceNode, roomsNode, usersNode], within: .seconds(10))
     
     /// 3. Creating all needed server actors
-    let persistence = Persistence(
-      actorSystem: sourceNode
+    
+    let logger = Logger(label: "postgres-logger")
+    let env = HBEnvironment()
+
+    guard let username = env.get("DB_USERNAME"),
+          let password = env.get("DB_PASSWORD"),
+          let database = env.get("DB_NAME") else {
+      throw Error.environmentNotSet
+    }
+    
+    let config = PostgresConnection.Configuration(
+      host: sourceNode.settings.endpoint.host,
+      port: 5432,
+      username: username,
+      password: password,
+      database: database,
+      tls: .disable
+    )
+
+    let connection = try await PostgresConnection.connect(
+      configuration: config,
+      id: 1,
+      logger: logger
+    )
+    let persistence = try await Persistence(
+      actorSystem: sourceNode,
+      type: .postgres(connection)
     )
     
-    let eventSource = try EventSource<MessageInfo>(
+    /// Event source could be on different node
+    let eventSource = try await EventSource<MessageInfo>(
       actorSystem: sourceNode,
-      type: .memory
+      type: .postgres(connection)
     )
     
     let connectionManager = ConnectionManager(
@@ -80,3 +119,5 @@ public struct Server {
     }
   }
 }
+
+extension MessageInfo: PostgresCodable {}

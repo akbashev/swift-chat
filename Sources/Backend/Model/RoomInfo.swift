@@ -12,12 +12,15 @@ public struct RoomInfo: Sendable, Codable, Equatable {
 
   public let id: ID
   public let name: String
+  public let description: String?
   
   public init(
     id: UUID,
-    name: String
+    name: String,
+    description: String?
   ) {
     self.id = .init(rawValue: id)
     self.name = name
+    self.description = description
   }
 }

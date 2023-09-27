@@ -1,17 +1,26 @@
 import Distributed
 import DistributedCluster
 import FoundationEssentials
+import PostgresNIO
 
 protocol Persistable {
-  func save(input: Persistence.Input) async
+  func create(input: Persistence.Input) async throws
+  func update(input: Persistence.Input) async throws
+  
   func getRoom(id: UUID) async throws -> RoomModel
-  func getRoom(name: String) async throws -> RoomModel
+  func searchRoom(query: String) async throws -> [RoomModel]
+  
   func getUser(id: UUID) async throws -> UserModel
 }
 
 distributed public actor Persistence: ClusterSingleton {
   
   public typealias ActorSystem = ClusterSystem
+  
+  public enum `Type` {
+    case memory
+    case postgres(PostgresConnection)
+  }
   
   public enum Error: Swift.Error {
     case roomMissing(id: UUID)
@@ -23,31 +32,43 @@ distributed public actor Persistence: ClusterSingleton {
     case user(UserModel)
     case room(RoomModel)
   }
+    
+  private let persistance: any Persistable
   
-  private let cache: any Persistable
-  // TODO: Add database
-  // private let database: any Storable
+  distributed public func create(_ input: Input) async throws {
+    try await self.persistance.create(input: input)
+  }
   
-  distributed public func save(_ input: Input) async {
-    await self.cache.save(input: input)
+  distributed public func update(_ input: Input) async throws {
+    try await self.persistance.update(input: input)
   }
   
   distributed public func getUser(id: UUID) async throws -> UserModel {
-    try await self.cache.getUser(id: id)
+    try await self.persistance.getUser(id: id)
   }
   
   distributed public func getRoom(id: UUID) async throws -> RoomModel {
-    try await self.cache.getRoom(id: id)
+    try await self.persistance.getRoom(id: id)
   }
   
-  distributed public func getRoom(name: String) async throws -> RoomModel {
-    try await self.cache.getRoom(name: name)
+  distributed public func searchRoom(query: String) async throws -> [RoomModel] {
+    try await self.persistance.searchRoom(query: query)
   }
   
   public init(
-    actorSystem: ClusterSystem
-  ) {
+    actorSystem: ClusterSystem,
+    type: `Type`
+  ) async throws {
     self.actorSystem = actorSystem
-    self.cache = Cache()
+    switch type {
+    case .memory:
+      self.persistance = Cache()
+    case .postgres(let connection):
+      try await Postgres.setupRoomsTable(for: connection)
+      try await Postgres.setupUsersTable(for: connection)
+      self.persistance = Postgres(
+        connection: connection
+      )
+    }
   }
 }

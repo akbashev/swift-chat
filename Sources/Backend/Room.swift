@@ -50,9 +50,11 @@ public distributed actor Room {
     eventSource: EventSource<MessageInfo>
   ) async throws {
     self.actorSystem = actorSystem
+    let id = roomInfo.id.rawValue.uuidString.lowercased()
     let messages = try await eventSource
       .get()
-      .filter({ $0.roomId == roomInfo.id })
+//      .get(predicate: "id::text = \(id)")
+      .filter { $0.roomId == roomInfo.id }
     self.state = .init(
       info: roomInfo,
       messages: messages

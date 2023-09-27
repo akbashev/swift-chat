@@ -2,7 +2,6 @@ import FoundationEssentials
 import Hummingbird
 
 public struct CreateUserRequest: Sendable, Equatable, HBResponseCodable {
-  public let id: String?
   public let name: String
 }
 

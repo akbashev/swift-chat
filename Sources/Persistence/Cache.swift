@@ -1,7 +1,7 @@
 import FoundationEssentials
 
 actor Cache: Persistable {
-  
+
   private struct Data: Equatable {
     var users: Set<UserModel> = []
     var rooms: Set<RoomModel> = []
@@ -9,7 +9,7 @@ actor Cache: Persistable {
   
   private var data: Data = .init()
   
-  func save(input: Persistence.Input) {
+  func create(input: Persistence.Input) throws {
     switch input {
       case .user(let user):
         self.data.users
@@ -19,6 +19,18 @@ actor Cache: Persistable {
           .insert(room)
     }
   }
+  
+  func update(input: Persistence.Input) throws {
+    switch input {
+      case .user(let user):
+        self.data.users
+          .insert(user)
+      case .room(let room):
+        self.data.rooms
+          .insert(room)
+    }
+  }
+  
   
   func getUser(id: UUID) throws -> UserModel {
     guard let userInfo = data.users.first(where: { $0.id == id }) else {
@@ -34,11 +46,9 @@ actor Cache: Persistable {
     return roomInfo
   }
   
-  func getRoom(name: String) throws -> RoomModel {
-    guard let roomInfo = data.rooms.first(where: { $0.name == name }) else {
-      throw Persistence.Error.roomMissing(name: name)
-    }
-    return roomInfo
+  
+  func searchRoom(query: String) async throws -> [RoomModel] {
+    data.rooms.filter { $0.name.contains(query) }
   }
 }
 

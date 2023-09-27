@@ -14,5 +14,6 @@ Swift 5.9 is needed (was playing with new Swift Foundations).
 
 ## TODO:
 1. ~~Check if actors are cleaned from memory when websocket disconnects.~~
-2. Event sourcing with proper database.
+2. ~~Some database with simple event sourcing.~~
 3. Clustering with fault tolerance. Check different scenarios like room node crashes and etc.
+4. TBD

@@ -42,20 +42,20 @@ public distributed actor Frontend {
 /// https://www.pointfree.co/collections/protocol-witnesses/alternatives-to-protocols
 public struct Api: Sendable {
   
-  let createUser: @Sendable (CreateUserRequest) async throws -> (UserResponse)
-  let creteRoom: @Sendable (CreateRoomRequest) async throws -> (RoomResponse)
-  let getRoom: @Sendable (CreateRoomRequest) async throws -> (RoomResponse)
+  let createUser: @Sendable (CreateUserRequest) async throws -> UserResponse
+  let creteRoom: @Sendable (CreateRoomRequest) async throws -> RoomResponse
+  let searchRoom: @Sendable (SearchRoomRequest) async throws -> [RoomResponse]
   let chat: @Sendable (AsyncStream<ChatConnection>) -> ()
   
   public init(
-    createUser: @Sendable @escaping (CreateUserRequest) async throws -> (UserResponse),
-    creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> (RoomResponse),
-    getRoom: @Sendable @escaping (CreateRoomRequest) async throws -> (RoomResponse),
+    createUser: @Sendable @escaping (CreateUserRequest) async throws -> UserResponse,
+    creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> RoomResponse,
+    searchRoom: @Sendable @escaping (SearchRoomRequest) async throws -> [RoomResponse],
     chat: @Sendable @escaping (AsyncStream<ChatConnection>) -> ()
   ) {
     self.createUser = createUser
     self.creteRoom = creteRoom
-    self.getRoom = getRoom
+    self.searchRoom = searchRoom
     self.chat = chat
   }
 }

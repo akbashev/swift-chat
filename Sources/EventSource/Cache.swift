@@ -6,7 +6,7 @@ actor Cache<Command>: Sourceable where Command: Codable {
   
   private var data: Data = .init()
   
-  func save(command: Command) {
+  func save(command: Command) throws {
     self.data.events.append(
       .init(
         id: .init(),
@@ -16,7 +16,7 @@ actor Cache<Command>: Sourceable where Command: Codable {
     )
   }
   
-  func get() -> [Command] {
+  func get(predicate: String?) -> [Command] {
     self.data.events.map { $0.command }
   }
 }

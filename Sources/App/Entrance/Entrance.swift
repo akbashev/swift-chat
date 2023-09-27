@@ -2,15 +2,16 @@ import SwiftUI
 import ComposableArchitecture
 
 public struct Entrance: Reducer {
-
+  
   @Dependency(\.userDefaults) var userDefaults
   @Dependency(\.apiClient) var apiClient
-
-  public struct State: Equatable {
   
-    @BindingState var userName: String = ""
-    @BindingState var roomName: String = ""
+  public struct State: Equatable {
+    
+    @BindingState var sheet: Entrance.State.Navigation.SheetRoute?
+    @BindingState var query: String = ""
     @PresentationState var room: Room.State?
+    var rooms: [RoomResponse] = []
     var isConnecting: Bool = false
     
     var showRoomView: Bool {
@@ -20,21 +21,27 @@ public struct Entrance: Reducer {
     var user: UserResponse?
     
     public init() {
-      // TODO: add after work on database will be done
-//      @Dependency(\.userDefaults) var userDefaults
-//      if let data = userDefaults.dataForKey(.userInfo),
-//         let user = try? JSONDecoder().decode(UserResponse.self, from: data) {
-//        self.user = user
-//      }
+      @Dependency(\.userDefaults) var userDefaults
+      if let data = userDefaults.dataForKey(.userInfo),
+         let user = try? JSONDecoder().decode(UserResponse.self, from: data) {
+        self.user = user
+      } else {
+        self.sheet = .createUser
+      }
     }
   }
   
   public enum Action: BindableAction, Equatable {
     case binding(BindingAction<State>)
-    case createUser
+    case onAppear
+    case openCreateRoom
+    case selectRoom(RoomResponse)
+    case createUser(String)
+    case createRoom(String, String?)
+    case searchRoom(String)
+    case didCreateRoom(TaskResult<RoomResponse>)
     case didCreateUser(TaskResult<UserResponse>)
-    case connectToRoom
-    case didConnectToRoom(TaskResult<RoomResponse>)
+    case didSearchRoom(TaskResult<[RoomResponse]>)
     case room(PresentationAction<Room.Action>)
   }
   
@@ -42,49 +49,75 @@ public struct Entrance: Reducer {
     BindingReducer()
     Reduce { state, action in
       switch action {
-        case .createUser:
-          let name = state.userName
-          return .run { send in
-            await send(
-              .didCreateUser(
-                TaskResult {
-                  try await apiClient.createUser(name,  UUID())
-                }
-              )
+      case .onAppear:
+//        if state.user == .none {
+//          state.sheet = .createUser
+//        }
+        return .none
+      case .selectRoom(let response):
+        state.room = .init(user: state.user!, room: response)
+        return .none
+      case .createUser(let userName):
+        return .run { send in
+          await send(
+            .didCreateUser(
+              TaskResult {
+                try await apiClient.createUser(userName)
+              }
             )
-          }
-        case let .didCreateUser(.success(user)):
-          state.user = user
-          return .none
-          // TODO: add after work on database will be done
-//          return .run { _ in
-//            try await userDefaults.setData(JSONEncoder().encode(user), .userInfo)
-//          }
-        case let .didCreateUser(.failure(error)):
-          return .none
-        case .connectToRoom:
-          let name = state.roomName
-          state.isConnecting = true
-          return .run { send in
-            await send(
-              .didConnectToRoom(
-                TaskResult {
-                  try await apiClient.connectToRoom(name)
-                }
-              )
+          )
+        }
+      case .openCreateRoom:
+        state.sheet = .createRoom
+        return .none
+      case .createRoom(let name, let description):
+        return .run { send in
+          await send(
+            .didCreateRoom(
+              TaskResult {
+                try await apiClient.createRoom(name, description)
+              }
             )
-          }
-        case let .didConnectToRoom(.success(room)):
-          state.isConnecting = false
-          state.room = .init(user: state.user!, room: room)
-          return .none
-        case let .didConnectToRoom(.failure(error)):
-          state.isConnecting = false
-          return .none
-        case .binding(_):
-          return .none
-        case .room(_):
-          return .none
+          )
+        }
+      case .searchRoom(let query):
+        state.isConnecting = true
+        return .run { send in
+          await send(
+            .didSearchRoom(
+              TaskResult {
+                try await apiClient.searchRoom(query)
+              }
+            )
+          )
+        }
+      case let .didCreateUser(.success(user)):
+        state.user = user
+        state.sheet = .none
+        return .run { _ in
+          try await userDefaults.setData(JSONEncoder().encode(user), .userInfo)
+        }
+      case let .didCreateUser(.failure(error)):
+        return .none
+      case let .didCreateRoom(.success(room)):
+        state.isConnecting = false
+        state.room = .init(user: state.user!, room: room)
+        state.sheet = .none
+        return .none
+      case let .didCreateRoom(.failure(error)):
+        state.isConnecting = false
+        return .none
+      case .didSearchRoom(let result):
+        state.rooms = (try? result.value) ?? []
+        return .none
+      case .binding(\.$query):
+        let query = state.query
+        return .run {
+          await $0(.searchRoom(query))
+        }
+      case .binding(_),
+          .room(_):
+        return .none
       }
     }
     .ifLet(\.$room, action: /Action.room) {
@@ -94,3 +127,41 @@ public struct Entrance: Reducer {
   
   public init() {}
 }
+
+extension Entrance.State {
+  enum Navigation: Equatable, Identifiable {
+    enum SheetRoute: Equatable, Identifiable {
+      case createUser
+      case createRoom
+      
+      public var id: String {
+        switch self {
+        case .createUser: "createUser"
+        case .createRoom: "createRoom"
+        }
+      }
+    }
+    
+    enum PopoverRoute: Equatable, Identifiable {
+      case error(String)
+      
+      public var id: String {
+        switch self {
+        case .error(let description): description
+        }
+      }
+    }
+    
+    case sheet(SheetRoute)
+    case popover(PopoverRoute)
+    
+    var id: String {
+      switch self {
+      case .sheet(let route): "sheet_\(route.id)"
+      case .popover(let route): "popover_\(route.id)"
+      }
+    }
+  }
+}
+
+extension RoomResponse: Identifiable {}

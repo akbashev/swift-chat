@@ -16,10 +16,12 @@ let package = Package(
     // Apple
     .package(url: "https://github.com/apple/swift-distributed-actors.git", branch: "main"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-foundation.git", .branch("main")),
+    .package(url: "https://github.com/apple/swift-foundation.git", branch: "main"),
     // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "1.0.0"),
     .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "1.0.0"),
+    // Vapor
+    .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.18.0"),
     // Pointfreeco
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.0.0"),
     .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
@@ -45,6 +47,7 @@ let package = Package(
       dependencies: [
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
+        "Postgres",
       ]
     ),
     .target(
@@ -62,6 +65,14 @@ let package = Package(
       dependencies: [
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
+        "Postgres",
+      ]
+    ),
+    .target(
+      name: "Postgres",
+      dependencies: [
+        .product(name: "FoundationEssentials", package: "swift-foundation"),
+        .product(name: "PostgresNIO", package: "postgres-nio"),
       ]
     ),
     .executableTarget(

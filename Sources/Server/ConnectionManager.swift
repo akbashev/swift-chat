@@ -23,8 +23,8 @@ actor ConnectionManager {
       createUser: { [weak self] request in
         guard let self else { throw Error.noConnection }
         let name = request.name
-        let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-        try await self.persistence.save(
+        let id = UUID()
+        try await self.persistence.create(
           .user(
             .init(
               id: id,
@@ -40,30 +40,36 @@ actor ConnectionManager {
       },
       creteRoom: { [weak self] request in
         guard let self else { throw Error.noConnection }
+        let id = UUID()
         let name = request.name
-        let id = request.id.flatMap(UUID.init(uuidString:)) ?? UUID()
-        try await self.persistence.save(
+        let description = request.description
+        try await self.persistence.create(
           .room(
             .init(
               id: id,
               createdAt: .init(),
-              name: request.name
+              name: request.name,
+              description: request.description
             )
           )
         )
         return RoomResponse(
           id: id,
-          name: name
+          name: name,
+          description: description
         )
       },
-      getRoom: { [weak self] request in
+      searchRoom: { [weak self] request in
         guard let self else { throw Error.noConnection }
-        let name = request.name
-        let model = try await self.persistence.getRoom(name: name)
-        return RoomResponse(
-          id: model.id,
-          name: model.name
-        )
+        let query = request.query
+        let rooms = try await self.persistence.searchRoom(query: query)
+        return rooms.map {
+          RoomResponse(
+            id: $0.id,
+            name: $0.name,
+            description: $0.description
+          )
+        }
       },
       chat: { chatConnection in
         Task { [weak self] in
@@ -83,7 +89,11 @@ actor ConnectionManager {
     do {
       /// 1. Find room
       let roomModel = try await persistence.getRoom(id: connection.roomId)
-      let roomInfo = RoomInfo(id: roomModel.id, name: roomModel.name)
+      let roomInfo = RoomInfo(
+        id: roomModel.id,
+        name: roomModel.name,
+        description: roomModel.description
+      )
       let room: Room = try await {
         do {
           return try await roomsManager
@@ -276,7 +286,8 @@ fileprivate extension RoomResponse {
   init(_ roomInfo: RoomInfo) {
     self.init(
       id: roomInfo.id.rawValue,
-      name: roomInfo.name
+      name: roomInfo.name,
+      description: roomInfo.description
     )
   }
 }
