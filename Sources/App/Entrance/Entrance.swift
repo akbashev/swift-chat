@@ -12,7 +12,7 @@ public struct Entrance: Reducer {
     @BindingState var query: String = ""
     @PresentationState var room: Room.State?
     var rooms: [RoomResponse] = []
-    var isConnecting: Bool = false
+    var isLoading: Bool = false
     
     var showRoomView: Bool {
       self.user != .none
@@ -45,14 +45,15 @@ public struct Entrance: Reducer {
     case room(PresentationAction<Room.Action>)
   }
   
+  enum CancellationId: Hashable {
+    case searchRoom
+  }
+  
   public var body: some Reducer<State, Action> {
     BindingReducer()
     Reduce { state, action in
       switch action {
       case .onAppear:
-//        if state.user == .none {
-//          state.sheet = .createUser
-//        }
         return .none
       case .selectRoom(let response):
         state.room = .init(user: state.user!, room: response)
@@ -81,7 +82,7 @@ public struct Entrance: Reducer {
           )
         }
       case .searchRoom(let query):
-        state.isConnecting = true
+        state.isLoading = true
         return .run { send in
           await send(
             .didSearchRoom(
@@ -100,20 +101,29 @@ public struct Entrance: Reducer {
       case let .didCreateUser(.failure(error)):
         return .none
       case let .didCreateRoom(.success(room)):
-        state.isConnecting = false
+        state.isLoading = false
         state.room = .init(user: state.user!, room: room)
         state.sheet = .none
         return .none
       case let .didCreateRoom(.failure(error)):
-        state.isConnecting = false
+        state.isLoading = false
         return .none
       case .didSearchRoom(let result):
         state.rooms = (try? result.value) ?? []
+        state.isLoading = false
         return .none
       case .binding(\.$query):
+        guard !state.query.isEmpty else {
+          state.rooms = []
+          return .none
+        }
         let query = state.query
-        return .run {
-          await $0(.searchRoom(query))
+        state.isLoading = true
+        return .run { send in
+          try await withTaskCancellation(id: CancellationId.searchRoom, cancelInFlight: true) {
+            try await Task.sleep(for: .seconds(0.5))
+            await send(.searchRoom(query))
+          }
         }
       case .binding(_),
           .room(_):

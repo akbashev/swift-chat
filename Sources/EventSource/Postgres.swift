@@ -15,15 +15,18 @@ actor Postgres<Command>: Sourceable where Command: Codable & PostgresCodable {
     )
   }
   
-  func get(predicate: String?) async throws -> [Command] {
+  func get(query: String? = .none) async throws -> [Command] {
     // TODO: Add predicate logic
-//    let query = [
-//     ,
-//      predicate
-//    ].compactMap { $0 }
-//      .joined(separator: " WHERE ")
+    let query: String = {
+      guard let query else {
+        return """
+          SELECT command FROM events
+        """
+      }
+      return query
+    }()
     let rows = try await connection.query(
-      "SELECT command FROM events",
+      PostgresQuery(stringLiteral: query),
       logger: connection.logger
     )
     var commands: [Command] = []
@@ -32,7 +35,7 @@ actor Postgres<Command>: Sourceable where Command: Codable & PostgresCodable {
     }
     return commands
   }
-  
+
   static func setupDatabase(for connection: PostgresConnection) async throws {
     // get list of tables
     let tables = try await connection

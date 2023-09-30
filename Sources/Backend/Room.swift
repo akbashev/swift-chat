@@ -52,9 +52,11 @@ public distributed actor Room {
     self.actorSystem = actorSystem
     let id = roomInfo.id.rawValue.uuidString.lowercased()
     let messages = try await eventSource
-      .get()
-//      .get(predicate: "id::text = \(id)")
-      .filter { $0.roomId == roomInfo.id }
+      .get(
+        query: """
+        SELECT command FROM events WHERE command->'roomId'->>'rawValue' ILIKE '\(id)';
+        """
+      )
     self.state = .init(
       info: roomInfo,
       messages: messages

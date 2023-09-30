@@ -95,7 +95,7 @@ public struct Room: Reducer {
                         group.addTask {
                           while !Task.isCancelled {
                             try await self.clock.sleep(for: .seconds(10))
-                            try? await self.webSocket.sendPing(WebSocketClient.ID())
+                            try await self.webSocket.sendPing(WebSocketClient.ID())
                           }
                         }
                         group.addTask {
@@ -104,6 +104,7 @@ public struct Room: Reducer {
                           }
                         }
                       case .didClose:
+                        print("didClose")
                         return
                     }
                   }
@@ -139,7 +140,6 @@ public struct Room: Reducer {
             await send(.sendResponse(didSucceed: false))
           }
           .cancellable(id: WebSocketClient.ID())
-          
         case .sendResponse(didSucceed: false):
           state.isSending = false
           state.alert = AlertState {

@@ -16,7 +16,7 @@ actor Cache<Command>: Sourceable where Command: Codable {
     )
   }
   
-  func get(predicate: String?) -> [Command] {
+  func get(query: String? = .none) -> [Command] {
     self.data.events.map { $0.command }
   }
 }

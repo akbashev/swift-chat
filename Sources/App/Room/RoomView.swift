@@ -16,6 +16,7 @@ public struct RoomView: View {
     @BindingViewState var isSending: Bool
     var userId: UUID
     var messages: [MessageResponse]
+    var messagesToSend: [String]
     var roomName: String
   }
   
@@ -28,6 +29,14 @@ public struct RoomView: View {
           isSending: $0.$isSending,
           userId: $0.user.id,
           messages: $0.receivedMessages,
+          messagesToSend: $0.messagesToSend.flatMap { message -> String? in
+            switch message {
+            case .message(let text):
+              return text
+            default:
+              return .none
+            }
+          },
           roomName: $0.room.name
         )
       }
@@ -37,59 +46,87 @@ public struct RoomView: View {
           LazyVStack {
             ForEach(viewStore.messages) { response in
               switch response.message {
-                case .join:
-                  Text("\(response.user.name) joined the chat. 🎉🥳")
-                case .disconnect:
-                  Text("\(response.user.name) disconnected. 💤😴")
-                case .leave:
-                  Text("\(response.user.name) left the chat. 👋🥲")
-                case .message(let message):
-                  if response.user.id == viewStore.userId {
-                    HStack {
-                      Spacer()
-                      Text(message)
-                        .foregroundColor(.white)
-                        .padding([.leading, .trailing], 6)
-                        .padding([.top, .bottom], 4)
-                        .background(
-                          Capsule()
-                            .strokeBorder(
-                              Color.clear,
-                              lineWidth: 0
-                            )
-                            .background(
-                              Color.blue
-                            )
-                            .clipped()
+              case .join:
+                Text("\(response.user.name) joined the chat. 🎉🥳")
+              case .disconnect:
+                Text("\(response.user.name) disconnected. 💤😴")
+              case .leave:
+                Text("\(response.user.name) left the chat. 👋🥲")
+              case .message(let message) where response.user.id == viewStore.userId:
+                HStack {
+                  Spacer()
+                  Text(message)
+                    .foregroundColor(.white)
+                    .padding([.leading, .trailing], 6)
+                    .padding([.top, .bottom], 4)
+                    .background(
+                      Capsule()
+                        .strokeBorder(
+                          Color.clear,
+                          lineWidth: 0
                         )
-                        .clipShape(Capsule())
-                    }
-                  } else {
-                    HStack {
-                      VStack(alignment: .leading, spacing: 2) {
-                        Text(response.user.name + ":")
-                          .font(.footnote)
-                          .foregroundStyle(Color.secondary)
-                        Text(message)
-                          .foregroundColor(.white)
-                          .padding([.leading, .trailing], 6)
-                          .padding([.top, .bottom], 4)
-                          .background(
-                            Capsule()
-                              .strokeBorder(
-                                Color.clear,
-                                lineWidth: 0
-                              )
-                              .background(
-                                Color.green
-                              )
-                              .clipped()
+                        .background(
+                          Color.blue
+                        )
+                        .clipped()
+                    )
+                    .clipShape(Capsule())
+                }
+              case .message(let message):
+                HStack {
+                  VStack(alignment: .leading, spacing: 2) {
+                    Text(response.user.name + ":")
+                      .font(.footnote)
+                      .foregroundStyle(Color.secondary)
+                    Text(message)
+                      .foregroundColor(.white)
+                      .padding([.leading, .trailing], 6)
+                      .padding([.top, .bottom], 4)
+                      .background(
+                        Capsule()
+                          .strokeBorder(
+                            Color.clear,
+                            lineWidth: 0
                           )
-                          .clipShape(Capsule())
-                      }
-                      Spacer()
-                    }
+                          .background(
+                            Color.green
+                          )
+                          .clipped()
+                      )
+                      .clipShape(Capsule())
                   }
+                  Spacer()
+                }
+              }
+            }
+            ForEach(
+              Array(
+                zip(
+                  viewStore.messagesToSend.indices,
+                  viewStore.messagesToSend
+                )
+              ),
+              id: \.0
+            ) { (_, message) in
+              HStack {
+                Spacer()
+                Text(message)
+                  .foregroundColor(.white)
+                  .padding([.leading, .trailing], 6)
+                  .padding([.top, .bottom], 4)
+                  .background(
+                    Capsule()
+                      .strokeBorder(
+                        Color.clear,
+                        lineWidth: 0
+                      )
+                      .background(
+                        Color.gray
+                      )
+                      .clipped()
+                  )
+                  .clipShape(Capsule())
+                ProgressView()
               }
             }
           }

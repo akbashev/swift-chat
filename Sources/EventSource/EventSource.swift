@@ -8,7 +8,7 @@ protocol Sourceable<Command> {
   associatedtype Command: Codable
   func save(command: Command) async throws
   // TODO: Add predicate (from Foundation?)
-  func get(predicate: String?) async throws -> [Command]
+  func get(query: String?) async throws -> [Command]
 }
 
 distributed public actor EventSource<Command>: ClusterSingleton where Command: Sendable & Codable {
@@ -31,8 +31,8 @@ distributed public actor EventSource<Command>: ClusterSingleton where Command: S
   }
   
   // TODO: Add predicate (from Foundation?)
-  distributed public func get(predicate: String? = .none) async throws -> [Command] {
-    try await self.dataStore.get(predicate: predicate)
+  distributed public func get(query: String? = .none) async throws -> [Command] {
+    try await self.dataStore.get(query: query)
   }
   
   public init(

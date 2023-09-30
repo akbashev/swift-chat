@@ -15,7 +15,7 @@ public struct EntranceView: View {
     @BindingViewState var sheet: Entrance.State.Navigation.SheetRoute?
     @BindingViewState var query: String
     var rooms: [RoomResponse]
-    var isConnecting: Bool
+    var isLoading: Bool
   }
   
   public var body: some View {
@@ -26,20 +26,23 @@ public struct EntranceView: View {
           sheet: $0.$sheet,
           query: $0.$query,
           rooms: $0.rooms,
-          isConnecting: $0.isConnecting
+          isLoading: $0.isLoading
         )
       }
     ) { viewStore in
       ScrollView {
         LazyVStack {
           ForEach(viewStore.rooms) { room in
-            VStack {
+            VStack(alignment: .leading) {
               Text(room.name)
                 .font(.headline)
               room.description.map {
                 Text($0)
               }
-            }.onTapGesture {
+              Divider()
+            }
+            .frame(maxWidth: .infinity)
+            .onTapGesture {
               viewStore.send(.selectRoom(room))
             }
           }
@@ -47,6 +50,11 @@ public struct EntranceView: View {
         .padding()
       }
       .searchable(text: viewStore.$query)
+      .overlay {
+        if viewStore.isLoading {
+          ProgressView()
+        }
+      }
       .onAppear {
         viewStore.send(.onAppear)
       }
