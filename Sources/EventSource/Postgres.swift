@@ -35,17 +35,31 @@ actor Postgres<Command>: Sourceable where Command: Codable & PostgresCodable {
     }
     return commands
   }
+  
+  init(
+    configuration: PostgresConnection.Configuration
+  ) async throws {
+    let logger = Logger(label: "eventsource-postgres-logger")
+    self.connection = try await PostgresConnection.connect(
+      configuration: configuration,
+      id: 1,
+      logger: logger
+    )
+    try await self.setupDatabase()
+  }
+}
 
-  static func setupDatabase(for connection: PostgresConnection) async throws {
+extension Postgres {
+  func setupDatabase() async throws {
     // get list of tables
-    let tables = try await connection
+    let tables = try await self.connection
       .query(
         """
         SELECT tablename FROM pg_catalog.pg_tables
         WHERE schemaname != 'pg_catalog'
         AND schemaname != 'information_schema';
         """,
-        logger: connection.logger
+        logger: self.connection.logger
       )
     // if "events" table exists already return
     for try await (tablename) in tables.decode(String.self, context: .default) {
@@ -55,7 +69,7 @@ actor Postgres<Command>: Sourceable where Command: Codable & PostgresCodable {
     }
     
     // create table
-    try await connection
+    try await self.connection
       .query(
         """
         CREATE TABLE events (
@@ -67,11 +81,4 @@ actor Postgres<Command>: Sourceable where Command: Codable & PostgresCodable {
         logger: connection.logger
       )
   }
-  
-  init(
-    connection: PostgresConnection
-  ) {
-    self.connection = connection
-  }
 }
-

@@ -87,7 +87,26 @@ actor Postgres: Persistable {
     return rooms
   }
   
-  static func setupUsersTable(for connection: PostgresConnection) async throws {
+  init(
+    configuration: PostgresConnection.Configuration
+  ) async throws {
+    let logger = Logger(label: "persistence-postgres-logger")
+    self.connection = try await PostgresConnection.connect(
+      configuration: configuration,
+      id: 1,
+      logger: logger
+    )
+    try await self.setupDatabase()
+  }
+}
+
+extension Postgres {
+  func setupDatabase() async throws {
+    try await self.setupUsersTable()
+    try await self.setupRoomsTable()
+  }
+  
+  func setupUsersTable() async throws {
     // get list of tables
     let tables = try await connection
       .query(
@@ -119,16 +138,16 @@ actor Postgres: Persistable {
       )
   }
   
-  static func setupRoomsTable(for connection: PostgresConnection) async throws {
+  func setupRoomsTable() async throws {
     // get list of tables
-    let tables = try await connection
+    let tables = try await self.connection
       .query(
         """
         SELECT tablename FROM pg_catalog.pg_tables
         WHERE schemaname != 'pg_catalog'
         AND schemaname != 'information_schema';
         """,
-        logger: connection.logger
+        logger: self.connection.logger
       )
     // if "rooms" table exists already return
     for try await (tablename) in tables.decode(String.self, context: .default) {
@@ -138,7 +157,7 @@ actor Postgres: Persistable {
     }
     
     // create table
-    try await connection
+    try await self.connection
       .query(
         """
         CREATE TABLE rooms (
@@ -148,11 +167,7 @@ actor Postgres: Persistable {
             "description" text
         );
         """,
-        logger: connection.logger
+        logger: self.connection.logger
       )
-  }
-  
-  init(connection: PostgresConnection) {
-    self.connection = connection
   }
 }

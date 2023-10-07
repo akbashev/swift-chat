@@ -2,46 +2,16 @@ import HummingbirdFoundation
 import HummingbirdWebSocket
 import Distributed
 import DistributedCluster
-
-public distributed actor Frontend {
-  
-  public typealias ActorSystem = ClusterSystem
-
-  private let websocketClient: WebsocketClient
-  private let httpClient: HttpClient
-  
-  public init(
-    actorSystem: ClusterSystem,
-    api: Api
-  ) async throws {
-    self.actorSystem = actorSystem
-    let app = HBApplication(
-      configuration: .init(
-        address: .hostname(
-          actorSystem.cluster.node.host,
-          port: 8080
-        ),
-        serverName: "Frontend"
-      )
-    )
-
-    app.encoder = JSONEncoder()
-    app.decoder = JSONDecoder()
-    
-    self.websocketClient = WebsocketClient(ws: app.ws)
-    self.httpClient = HttpClient(router: app.router)
-    
-    self.websocketClient.configure(api: api)
-    self.httpClient.configure(api: api)
-    
-    try app.start()
-  }
-}
+import FoundationEssentials
 
 /// Protocol Witness Pointfree.co's style
 /// https://www.pointfree.co/collections/protocol-witnesses/alternatives-to-protocols
 public struct Api: Sendable {
   
+  public enum Error: Swift.Error {
+    case noConnection
+  }
+
   let createUser: @Sendable (CreateUserRequest) async throws -> UserResponse
   let creteRoom: @Sendable (CreateRoomRequest) async throws -> RoomResponse
   let searchRoom: @Sendable (SearchRoomRequest) async throws -> [RoomResponse]

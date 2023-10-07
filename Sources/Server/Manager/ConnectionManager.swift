@@ -5,85 +5,16 @@ import FoundationEssentials
 import NIOCore
 import EventSource
 import Persistence
+import Hummingbird
+import PostgresNIO
 
-actor ConnectionManager {
-  
-  enum Error: Swift.Error {
-    case noConnection
-  }
-  
-  let roomsNode: ClusterSystem
-  let usersNode: ClusterSystem
-  let roomsManager: RoomsManager
-  let persistence: Persistence
-  let eventSource: EventSource<MessageInfo>
-
-  lazy var api: Api = {
-    .init(
-      createUser: { [weak self] request in
-        guard let self else { throw Error.noConnection }
-        let name = request.name
-        let id = UUID()
-        try await self.persistence.create(
-          .user(
-            .init(
-              id: id,
-              createdAt: .init(),
-              name: request.name
-            )
-          )
-        )
-        return UserResponse(
-          id: id,
-          name: name
-        )
-      },
-      creteRoom: { [weak self] request in
-        guard let self else { throw Error.noConnection }
-        let id = UUID()
-        let name = request.name
-        let description = request.description
-        try await self.persistence.create(
-          .room(
-            .init(
-              id: id,
-              createdAt: .init(),
-              name: request.name,
-              description: request.description
-            )
-          )
-        )
-        return RoomResponse(
-          id: id,
-          name: name,
-          description: description
-        )
-      },
-      searchRoom: { [weak self] request in
-        guard let self else { throw Error.noConnection }
-        let query = request.query
-        let rooms = try await self.persistence.searchRoom(query: query)
-        return rooms.map {
-          RoomResponse(
-            id: $0.id,
-            name: $0.name,
-            description: $0.description
-          )
-        }
-      },
-      chat: { chatConnection in
-        Task { [weak self] in
-          guard let self else { throw Error.noConnection }
-          for await connection in chatConnection {
-            await self.handle(connection)
-          }
-        }
-      }
-    )
-  }()
-  
-  func handle(
-    _ connection: ChatConnection
+enum ConnectionManager {
+  static func handle(
+    actorSystem: ClusterSystem,
+    connection: ChatConnection,
+    persistence: Persistence,
+    eventSource: EventSource<MessageInfo>,
+    roomPool: RoomPool
   ) async {
     let ws = connection.ws
     do {
@@ -94,18 +25,10 @@ actor ConnectionManager {
         name: roomModel.name,
         description: roomModel.description
       )
-      let room: Room = try await {
-        do {
-          return try await roomsManager
-            .room(for: .init(rawValue: connection.roomId))
-        } catch {
-          return try await Room(
-            actorSystem: roomsNode,
-            roomInfo: roomInfo,
-            eventSource: eventSource
-          )
-        }
-      }()
+      let room: Room = try await roomPool.findRoom(
+        with: roomInfo,
+        eventSource: eventSource
+      )
     
       /// 2. Create user for that connection
       let userModel = try await persistence.getUser(id: connection.userId)
@@ -114,27 +37,25 @@ actor ConnectionManager {
         name: userModel.name
       )
       let user = try await User(
-        actorSystem: usersNode,
+        actorSystem: actorSystem,
         userInfo: userInfo,
-        reply: .init(
-          send: { output in
-            /// 3. Start listening for messages from other users
-            switch output {
-              case let .message(message, userInfo, _):
-                var data = ByteBuffer()
-                _ = try? data.writeJSONEncodable(
-                  [
-                    ChatResponse(
-                      createdAt: message.createdAt,
-                      user: .init(userInfo),
-                      message: .init(message.message)
-                    )
-                  ]
-                )
-                try await ws.write(.binary(data))
-            }
+        reply: .init { output in
+          /// 3. Start listening for messages from other users
+          switch output {
+            case let .message(message, userInfo, _):
+              var data = ByteBuffer()
+              _ = try? data.writeJSONEncodable(
+                [
+                  ChatResponse(
+                    createdAt: message.createdAt,
+                    user: .init(userInfo),
+                    message: .init(message.message)
+                  )
+                ]
+              )
+              try await ws.write(.binary(data))
           }
-        )
+        }
       )
       
       /// 4. Listen for disconnection
@@ -151,7 +72,7 @@ actor ConnectionManager {
           switch message.message {
             case .message:
               group.addTask {
-                try? await self.persistence.getUser(id: message.userId.rawValue)
+                try? await persistence.getUser(id: message.userId.rawValue)
               }
             default:
               break
@@ -203,7 +124,7 @@ actor ConnectionManager {
               try? await user.send(message: .message(string), to: room)
             case .binary(var data):
               do {
-                guard let messages = try data.readJSONDecodable([Message].self, length: data.readableBytes) else { return }
+                guard let messages = try data.readJSONDecodable([Backend.Message].self, length: data.readableBytes) else { return }
                 for message in messages {
                   let messageInfo = try await user.send(message: message, to: room)
                   var data = ByteBuffer()
@@ -219,31 +140,13 @@ actor ConnectionManager {
                   try await ws.write(.binary(data))
                 }
               } catch {
-                usersNode.log.error("\(error)")
+                actorSystem.log.error("\(error)")
               }
           }
         }
       }
     } catch {
       try? await ws.close(code: .unacceptableData)
-    }
-  }
-  
-  init(
-    roomsNode: ClusterSystem,
-    usersNode: ClusterSystem,
-    persistence: Persistence,
-    eventSource: EventSource<MessageInfo>
-  ) {
-    self.roomsNode = roomsNode
-    self.usersNode = usersNode
-    self.roomsManager = RoomsManager(actorSystem: roomsNode)
-    self.persistence = persistence
-    self.eventSource = eventSource
-    defer {
-      Task {
-        try await self.roomsManager.findRooms()
-      }
     }
   }
 }
@@ -291,3 +194,75 @@ fileprivate extension RoomResponse {
     )
   }
 }
+
+extension MessageInfo: PostgresCodable {}
+
+extension Api {
+  static func live(
+    node: ClusterSystem,
+    persistencePool: PersistencePool,
+    handle: @escaping (ChatConnection) async -> ()
+  ) -> Self {
+    Self(
+      createUser: { request in
+        let persistence = try await persistencePool.get()
+        let name = request.name
+        let id = UUID()
+        try await persistence.create(
+          .user(
+            .init(
+              id: id,
+              createdAt: .init(),
+              name: request.name
+            )
+          )
+        )
+        return UserResponse(
+          id: id,
+          name: name
+        )
+      },
+      creteRoom: { request in
+        let persistence = try await persistencePool.get()
+        let id = UUID()
+        let name = request.name
+        let description = request.description
+        try await persistence.create(
+          .room(
+            .init(
+              id: id,
+              createdAt: .init(),
+              name: request.name,
+              description: request.description
+            )
+          )
+        )
+        return RoomResponse(
+          id: id,
+          name: name,
+          description: description
+        )
+      },
+      searchRoom: { request in
+        let persistence = try await persistencePool.get()
+        let query = request.query
+        let rooms = try await persistence.searchRoom(query: query)
+        return rooms.map {
+          RoomResponse(
+            id: $0.id,
+            name: $0.name,
+            description: $0.description
+          )
+        }
+      },
+      chat: { chatConnection in
+        Task {
+          for await connection in chatConnection {
+            await handle(connection)
+          }
+        }
+      }
+    )
+  }
+}
+

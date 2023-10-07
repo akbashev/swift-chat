@@ -3,19 +3,21 @@ import HummingbirdWebSocket
 import HummingbirdFoundation
 import FoundationEssentials
 
-class WebsocketClient {
-  
-  private let ws: HBWebSocketBuilder
-  
-  func configure(
+public enum WebsocketClient {
+  public static func configure(
+    wsBuilder: HBWebSocketBuilder,
     api: Api
   ) {
-    api.chat(chat())
+    wsBuilder.addUpgrade()
+    wsBuilder.add(middleware: HBLogRequestsMiddleware(.info))
+    api.chat(WebsocketClient.chat(wsBuilder: wsBuilder))
   }
   
-  func chat() -> AsyncStream<ChatConnection> {
+  private static func chat(
+    wsBuilder: HBWebSocketBuilder
+  ) -> AsyncStream<ChatConnection> {
     .init { continuation in
-      self.ws.on(
+      wsBuilder.on(
         "/chat",
         shouldUpgrade: { request in
           guard request.uri.queryParameters["user_id"] != nil,
@@ -43,13 +45,5 @@ class WebsocketClient {
         }
       )
     }
-  }
-  
-  init(
-    ws: HBWebSocketBuilder
-  ) {
-    self.ws = ws
-    self.ws.addUpgrade()
-    self.ws.add(middleware: HBLogRequestsMiddleware(.info))
   }
 }

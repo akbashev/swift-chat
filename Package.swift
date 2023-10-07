@@ -57,7 +57,7 @@ let package = Package(
         .product(name: "HummingbirdFoundation", package: "hummingbird"),
         .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "FoundationEssentials", package: "swift-foundation"),
+        .product(name: "FoundationEssentials", package: "swift-foundation")
       ]
     ),
     .target(
@@ -78,9 +78,10 @@ let package = Package(
     .executableTarget(
       name: "Server",
       dependencies: [
+        .product(name: "ArgumentParser", package: "swift-argument-parser"),
         "Backend",
         "Frontend",
-        "Persistence",
+        "Persistence"
       ]
     ),
   ]

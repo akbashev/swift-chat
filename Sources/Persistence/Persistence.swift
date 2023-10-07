@@ -13,13 +13,13 @@ protocol Persistable {
   func getUser(id: UUID) async throws -> UserModel
 }
 
-distributed public actor Persistence: ClusterSingleton {
+distributed public actor Persistence {
   
   public typealias ActorSystem = ClusterSystem
   
   public enum `Type` {
     case memory
-    case postgres(PostgresConnection)
+    case postgres(PostgresConnection.Configuration)
   }
   
   public enum Error: Swift.Error {
@@ -63,12 +63,17 @@ distributed public actor Persistence: ClusterSingleton {
     switch type {
     case .memory:
       self.persistance = Cache()
-    case .postgres(let connection):
-      try await Postgres.setupRoomsTable(for: connection)
-      try await Postgres.setupUsersTable(for: connection)
-      self.persistance = Postgres(
-        connection: connection
+    case .postgres(let configuration):
+      self.persistance = try await Postgres(
+        configuration: configuration
       )
     }
+    await actorSystem
+      .receptionist
+      .checkIn(self, with: .persistence)
   }
+}
+
+extension DistributedReception.Key {
+  public static var persistence: DistributedReception.Key<Persistence> { "persistences" }
 }

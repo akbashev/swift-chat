@@ -11,13 +11,13 @@ protocol Sourceable<Command> {
   func get(query: String?) async throws -> [Command]
 }
 
-distributed public actor EventSource<Command>: ClusterSingleton where Command: Sendable & Codable {
+distributed public actor EventSource<Command> where Command: Sendable & Codable {
   
   public typealias ActorSystem = ClusterSystem
   
   public enum `Type` {
     case memory
-    case postgres(PostgresConnection)
+    case postgres(PostgresConnection.Configuration)
   }
   
   public enum Error: Swift.Error {
@@ -30,7 +30,7 @@ distributed public actor EventSource<Command>: ClusterSingleton where Command: S
     try await self.dataStore.save(command: command)
   }
   
-  // TODO: Add predicate (from Foundation?)
+  // TODO: Maybe add some predicate instead of whole query? (from Foundation?)
   distributed public func get(query: String? = .none) async throws -> [Command] {
     try await self.dataStore.get(query: query)
   }
@@ -56,9 +56,15 @@ distributed public actor EventSource<Command>: ClusterSingleton where Command: S
     switch type {
     case .memory:
       self.dataStore = Cache()
-    case .postgres(let connection):
-      try await Postgres<Command>.setupDatabase(for: connection)
-      self.dataStore = Postgres<Command>(connection: connection)
+    case .postgres(let configuration):
+      self.dataStore = try await Postgres<Command>(configuration: configuration)
     }
+    await actorSystem
+      .receptionist
+      .checkIn(self, with: Self.eventSources)
   }
+}
+
+extension EventSource {
+  public static var eventSources: DistributedReception.Key<EventSource<Command>> { "eventSources_\(String(describing: Command.self))" }
 }
