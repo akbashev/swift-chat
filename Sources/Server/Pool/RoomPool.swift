@@ -5,12 +5,6 @@ import Backend
 
 distributed actor RoomPool: LifecycleWatch {
 
-  enum Error: Swift.Error {
-    case roomNotFound
-  }
-  
-  public typealias ActorSystem = ClusterSystem
-
   private lazy var rooms: Set<Room> = .init()
   private var listingTask: Task<Void, Never>?
   
@@ -24,19 +18,8 @@ distributed actor RoomPool: LifecycleWatch {
         return room
       }
     }
-    return try await self.spawnRoom(
+    return try await self.spawn(
       with: info,
-      eventSource: eventSource
-    )
-  }
-  
-  private func spawnRoom(
-    with info: RoomInfo,
-    eventSource: EventSource<MessageInfo>
-  ) async throws -> Room {
-    try await Room(
-      actorSystem: self.actorSystem,
-      roomInfo: info,
       eventSource: eventSource
     )
   }
@@ -54,6 +37,7 @@ distributed actor RoomPool: LifecycleWatch {
     self.listingTask = Task {
       for await room in await actorSystem.receptionist.listing(of: .rooms) {
         self.rooms.insert(room)
+        self.watchTermination(of: room)
       }
     }
   }
@@ -71,4 +55,17 @@ distributed actor RoomPool: LifecycleWatch {
 
 extension DistributedReception.Key {
   static var roomPools: DistributedReception.Key<RoomPool> { "room_pools" }
+}
+
+extension RoomPool {
+  private func spawn(
+    with info: RoomInfo,
+    eventSource: EventSource<MessageInfo>
+  ) async throws -> Room {
+    try await Room(
+      actorSystem: self.actorSystem,
+      roomInfo: info,
+      eventSource: eventSource
+    )
+  }
 }

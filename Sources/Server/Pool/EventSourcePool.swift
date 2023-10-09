@@ -26,10 +26,7 @@ distributed actor EventSourcePool: LifecycleWatch {
   
   // TODO: Implement HashRing?
   distributed func get() async throws -> EventSource<MessageInfo> {
-    if let eventSource = self.eventSources.randomElement() {
-      self.localEventSource = .none
-      return eventSource
-    }
+    if let eventSource = self.eventSources.randomElement() { return eventSource }
     if let localEventSource { return localEventSource }
     let eventSource = try await Self.spawnEventSource(clusterSystem: self.actorSystem)
     self.localEventSource = eventSource
@@ -49,10 +46,20 @@ distributed actor EventSourcePool: LifecycleWatch {
     self.listingTask = Task {
       for await eventSource in await self.actorSystem.receptionist.listing(of: EventSource<MessageInfo>.eventSources) {
         self.eventSources.insert(eventSource)
+        self.watchTermination(of: eventSource)
       }
     }
   }
   
+  init(
+    actorSystem: ClusterSystem
+  ) {
+    self.actorSystem = actorSystem
+    self.findEventSources()
+  }
+}
+
+extension EventSourcePool {
   static func spawnEventSource(
     clusterSystem: ClusterSystem
   ) async throws -> EventSource<MessageInfo> {
@@ -76,12 +83,5 @@ distributed actor EventSourcePool: LifecycleWatch {
       actorSystem: clusterSystem,
       type: .postgres(config)
     )
-  }
-  
-  init(
-    actorSystem: ClusterSystem
-  ) {
-    self.actorSystem = actorSystem
-    self.findEventSources()
   }
 }

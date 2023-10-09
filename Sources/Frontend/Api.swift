@@ -15,17 +15,17 @@ public struct Api: Sendable {
   let createUser: @Sendable (CreateUserRequest) async throws -> UserResponse
   let creteRoom: @Sendable (CreateRoomRequest) async throws -> RoomResponse
   let searchRoom: @Sendable (SearchRoomRequest) async throws -> [RoomResponse]
-  let chat: @Sendable (AsyncStream<ChatConnection>) -> ()
+  let handle: @Sendable (ChatConnection) -> ()
   
   public init(
     createUser: @Sendable @escaping (CreateUserRequest) async throws -> UserResponse,
     creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> RoomResponse,
     searchRoom: @Sendable @escaping (SearchRoomRequest) async throws -> [RoomResponse],
-    chat: @Sendable @escaping (AsyncStream<ChatConnection>) -> ()
+    handle: @Sendable @escaping (ChatConnection) -> ()
   ) {
     self.createUser = createUser
     self.creteRoom = creteRoom
     self.searchRoom = searchRoom
-    self.chat = chat
+    self.handle = handle
   }
 }

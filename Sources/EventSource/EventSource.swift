@@ -23,7 +23,7 @@ distributed public actor EventSource<Command> where Command: Sendable & Codable 
   public enum Error: Swift.Error {
     case typeNotSupported
   }
-  
+    
   private let dataStore: any Sourceable<Command>
   
   distributed public func save(_ command: Command) async throws {
@@ -46,6 +46,9 @@ distributed public actor EventSource<Command> where Command: Sendable & Codable 
     case .postgres:
       throw Error.typeNotSupported
     }
+    await actorSystem
+      .receptionist
+      .checkIn(self, with: Self.eventSources)
   }
 
   public init(

@@ -2,7 +2,7 @@ import DistributedCluster
 import Persistence
 import EventSource
 
-enum DatabaseNode: Node {
+enum Database: Node {
   static func run(
     host: String,
     port: Int
@@ -15,7 +15,7 @@ enum DatabaseNode: Node {
     }
     
     dbNode.cluster.join(host: "127.0.0.1", port: 2550)
-    try await Server.ensureCluster([dbNode], within: .seconds(10))
+    try await Self.ensureCluster(dbNode, within: .seconds(10))
     
     /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
     let persistance = try await PersistencePool.spawnPersistence(clusterSystem: dbNode)

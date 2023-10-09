@@ -8,7 +8,7 @@ import Logging
 
 distributed actor PersistencePool: LifecycleWatch {
   
-  public enum Error: Swift.Error, LocalizedError {
+  enum Error: Swift.Error, LocalizedError {
     case environmentNotSet
     
     var description: String {
@@ -25,10 +25,7 @@ distributed actor PersistencePool: LifecycleWatch {
   
   // TODO: Implement HashRing?
   distributed func get() async throws -> Persistence {
-    if let persistence = self.persistences.randomElement() {
-      self.localPersistence = .none
-      return persistence
-    }
+    if let persistence = self.persistences.randomElement() { return persistence }
     if let localPersistence { return localPersistence }
     let persistence = try await PersistencePool.spawnPersistence(clusterSystem: self.actorSystem)
     self.localPersistence = persistence
@@ -48,10 +45,20 @@ distributed actor PersistencePool: LifecycleWatch {
     self.listingTask = Task {
       for await persistence in await actorSystem.receptionist.listing(of: .persistence) {
         self.persistences.insert(persistence)
+        self.watchTermination(of: persistence)
       }
     }
   }
 
+  init(
+    actorSystem: ClusterSystem
+  ) {
+    self.actorSystem = actorSystem
+    self.findPersistances()
+  }
+}
+
+extension PersistencePool {
   static func spawnPersistence(
     clusterSystem: ClusterSystem
   ) async throws -> Persistence {
@@ -77,12 +84,5 @@ distributed actor PersistencePool: LifecycleWatch {
       actorSystem: clusterSystem,
       type: .postgres(config)
     )
-  }
-
-  init(
-    actorSystem: ClusterSystem
-  ) {
-    self.actorSystem = actorSystem
-    self.findPersistances()
   }
 }
