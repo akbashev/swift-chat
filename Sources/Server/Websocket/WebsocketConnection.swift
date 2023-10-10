@@ -52,8 +52,13 @@ public actor WebsocketConnection {
         /// 3. Start listening for messages from other users
         switch output {
         case let .message(message, userInfo, _):
+          let response = ChatResponse(
+            createdAt: message.createdAt,
+            user: .init(userInfo),
+            message: .init(message.message)
+          )
           var data = ByteBuffer()
-          _ = try? data.writeJSONEncodable([message])
+          _ = try? data.writeJSONEncodable([response])
           _ = info.ws.write(.binary(data))
         }
       }
@@ -67,10 +72,6 @@ public actor WebsocketConnection {
       try? await self.greeting()
       self.listenFor(messages: ws.readStream())
     }
-  }
-  
-  func close() async {
-    _ = try? await self.user.send(message: .disconnect, to: self.room)
   }
   
   func sendOldMessages() async {
@@ -129,30 +130,41 @@ public actor WebsocketConnection {
   ) {
     self.listeningTask = Task {
       for await message in messages {
-        guard !Task.isCancelled else { return }
-        switch message {
-        case .text(let string):
-          try await self.send(
-            response: user.send(
-              message: .message(string),
-              to: self.room
-            )
-          )
-          break
-        case .binary(var data):
-          guard let messages = try data.readJSONDecodable(
-            [ChatResponse.Message].self,
-            length: data.readableBytes
-          ) else { break }
-          for message in messages {
-            try await self.send(
-              response: user.send(
-                message: .init(message),
-                to: self.room
-              )
-            )
-          }
+        guard !Task.isCancelled else {
+          self.close()
+          return
         }
+        do {
+          try await self.handle(message: message)
+        } catch {
+          self.close()
+        }
+      }
+    }
+  }
+  
+  func handle(message: WebSocketData) async throws {
+    switch message {
+    case .text(let string):
+      try await self.send(
+        response: user.send(
+          message: .message(string),
+          to: self.room
+        )
+      )
+      break
+    case .binary(var data):
+      guard let messages = try data.readJSONDecodable(
+        [ChatResponse.Message].self,
+        length: data.readableBytes
+      ) else { break }
+      for message in messages {
+        try await self.send(
+          response: user.send(
+            message: .init(message),
+            to: self.room
+          )
+        )
       }
     }
   }
@@ -161,7 +173,8 @@ public actor WebsocketConnection {
     self.listeningTask?.cancel()
     self.listeningTask = .none
     Task {
-      try await self.ws.close()
+      _ = try? await self.user.send(message: .disconnect, to: self.room)
+      try? await self.ws.close()
     }
   }
   
@@ -189,10 +202,6 @@ public actor WebsocketConnection {
     var data = ByteBuffer()
     _ = try? data.writeJSONEncodable(messages)
     _ = self.ws.write(.binary(data))
-  }
-  
-  deinit {
-    print("deinit")
   }
 }
 

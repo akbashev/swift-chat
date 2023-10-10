@@ -141,6 +141,12 @@ public struct RoomView: View {
                 reader.scrollTo(last.id, anchor: .top)
               }
             }
+            .onChange(of: viewStore.messagesToSend) { messages in
+              guard !messages.isEmpty else { return }
+              withAnimation {
+                reader.scrollTo(messages.count - 1, anchor: .top)
+              }
+            }
           }
         }
         Divider()
