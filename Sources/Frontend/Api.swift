@@ -15,17 +15,41 @@ public struct Api: Sendable {
   let createUser: @Sendable (CreateUserRequest) async throws -> UserResponse
   let creteRoom: @Sendable (CreateRoomRequest) async throws -> RoomResponse
   let searchRoom: @Sendable (SearchRoomRequest) async throws -> [RoomResponse]
-  let handle: @Sendable (ChatConnection) -> ()
   
   public init(
     createUser: @Sendable @escaping (CreateUserRequest) async throws -> UserResponse,
     creteRoom: @Sendable @escaping (CreateRoomRequest) async throws -> RoomResponse,
-    searchRoom: @Sendable @escaping (SearchRoomRequest) async throws -> [RoomResponse],
-    handle: @Sendable @escaping (ChatConnection) -> ()
+    searchRoom: @Sendable @escaping (SearchRoomRequest) async throws -> [RoomResponse]
   ) {
     self.createUser = createUser
     self.creteRoom = creteRoom
     self.searchRoom = searchRoom
-    self.handle = handle
+  }
+}
+
+extension Api {
+  public static func configure(
+    router: HBRouterBuilder,
+    api: Self
+  ) {
+    router.get("hello") { _ in
+      return "Hello"
+    }
+    router.post("user") { req in
+      guard let user = try? req.decode(as: CreateUserRequest.self)
+      else { throw HBHTTPError(.badRequest) }
+      return try await api.createUser(user)
+    }
+    router.post("room") { req in
+      guard let room = try? req.decode(as: CreateRoomRequest.self)
+      else { throw HBHTTPError(.badRequest) }
+      return try await api.creteRoom(room)
+    }
+    router.get("room/search") { req in
+      guard let query = req.uri
+        .queryParameters
+        .get("query", as: String.self) else { throw HBHTTPError(.badRequest) }
+      return try await api.searchRoom(.init(query: query))
+    }
   }
 }

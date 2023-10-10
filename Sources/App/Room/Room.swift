@@ -123,13 +123,17 @@ public struct Room: Reducer {
             state.receivedMessages.append(contentsOf: messages)
           }
           return .none
-          
         case .receivedSocketMessage(.failure):
-          return .none
-          
+        state.connectivityState = .disconnected
+        return .run { send in
+          Task.cancel(id: WebSocketClient.ID())
+          try await Task.sleep(for: .seconds(3))
+          await send(.connect)
+        }
         case .sendButtonTapped:
-          state.messagesToSend.append(.message(state.message))
+          let message = state.message
           state.message = ""
+          state.messagesToSend.append(.message(message))
           let messagesToSend = state.messagesToSend
           state.isSending = true
           return .run { send in

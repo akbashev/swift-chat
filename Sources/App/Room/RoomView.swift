@@ -29,7 +29,7 @@ public struct RoomView: View {
           isSending: $0.$isSending,
           userId: $0.user.id,
           messages: $0.receivedMessages,
-          messagesToSend: $0.messagesToSend.flatMap { message -> String? in
+          messagesToSend: $0.messagesToSend.compactMap { message -> String? in
             switch message {
             case .message(let text):
               return text
@@ -41,18 +41,77 @@ public struct RoomView: View {
         )
       }
     ) { viewStore in
-      VStack {
-        ScrollView {
-          LazyVStack {
-            ForEach(viewStore.messages) { response in
-              switch response.message {
-              case .join:
-                Text("\(response.user.name) joined the chat. 🎉🥳")
-              case .disconnect:
-                Text("\(response.user.name) disconnected. 💤😴")
-              case .leave:
-                Text("\(response.user.name) left the chat. 👋🥲")
-              case .message(let message) where response.user.id == viewStore.userId:
+      VStack(spacing: 0) {
+        ScrollViewReader { reader in
+          ScrollView {
+            LazyVStack {
+              ForEach(viewStore.messages) { response in
+                Group {
+                  switch response.message {
+                  case .join:
+                    Text("\(response.user.name) joined the chat. 🎉🥳")
+                  case .disconnect:
+                    Text("\(response.user.name) disconnected. 💤😴")
+                  case .leave:
+                    Text("\(response.user.name) left the chat. 👋🥲")
+                  case .message(let message) where response.user.id == viewStore.userId:
+                    HStack {
+                      Spacer()
+                      Text(message)
+                        .foregroundColor(.white)
+                        .padding([.leading, .trailing], 6)
+                        .padding([.top, .bottom], 4)
+                        .background(
+                          Capsule()
+                            .strokeBorder(
+                              Color.clear,
+                              lineWidth: 0
+                            )
+                            .background(
+                              Color.blue
+                            )
+                            .clipped()
+                        )
+                        .clipShape(Capsule())
+                    }
+                  case .message(let message):
+                    HStack {
+                      VStack(alignment: .leading, spacing: 2) {
+                        Text(response.user.name + ":")
+                          .font(.footnote)
+                          .foregroundStyle(Color.secondary)
+                        Text(message)
+                          .foregroundColor(.white)
+                          .padding([.leading, .trailing], 6)
+                          .padding([.top, .bottom], 4)
+                          .background(
+                            Capsule()
+                              .strokeBorder(
+                                Color.clear,
+                                lineWidth: 0
+                              )
+                              .background(
+                                Color.green
+                              )
+                              .clipped()
+                          )
+                          .clipShape(Capsule())
+                      }
+                      Spacer()
+                    }
+                  }
+                }
+                .id(response.id)
+              }
+              ForEach(
+                Array(
+                  zip(
+                    viewStore.messagesToSend.indices,
+                    viewStore.messagesToSend
+                  )
+                ),
+                id: \.0
+              ) { (_, message) in
                 HStack {
                   Spacer()
                   Text(message)
@@ -66,71 +125,25 @@ public struct RoomView: View {
                           lineWidth: 0
                         )
                         .background(
-                          Color.blue
+                          Color.gray
                         )
                         .clipped()
                     )
                     .clipShape(Capsule())
-                }
-              case .message(let message):
-                HStack {
-                  VStack(alignment: .leading, spacing: 2) {
-                    Text(response.user.name + ":")
-                      .font(.footnote)
-                      .foregroundStyle(Color.secondary)
-                    Text(message)
-                      .foregroundColor(.white)
-                      .padding([.leading, .trailing], 6)
-                      .padding([.top, .bottom], 4)
-                      .background(
-                        Capsule()
-                          .strokeBorder(
-                            Color.clear,
-                            lineWidth: 0
-                          )
-                          .background(
-                            Color.green
-                          )
-                          .clipped()
-                      )
-                      .clipShape(Capsule())
-                  }
-                  Spacer()
+                  ProgressView()
                 }
               }
             }
-            ForEach(
-              Array(
-                zip(
-                  viewStore.messagesToSend.indices,
-                  viewStore.messagesToSend
-                )
-              ),
-              id: \.0
-            ) { (_, message) in
-              HStack {
-                Spacer()
-                Text(message)
-                  .foregroundColor(.white)
-                  .padding([.leading, .trailing], 6)
-                  .padding([.top, .bottom], 4)
-                  .background(
-                    Capsule()
-                      .strokeBorder(
-                        Color.clear,
-                        lineWidth: 0
-                      )
-                      .background(
-                        Color.gray
-                      )
-                      .clipped()
-                  )
-                  .clipShape(Capsule())
-                ProgressView()
+            .padding()
+            .onChange(of: viewStore.messages) { messages in
+              guard let last = messages.last else { return }
+              withAnimation {
+                reader.scrollTo(last.id, anchor: .top)
               }
             }
           }
         }
+        Divider()
         HStack {
           TextField(
             "Enter message",
@@ -143,12 +156,13 @@ public struct RoomView: View {
             Text("Send")
           }.disabled(viewStore.isSending)
         }
+        .padding()
+        .background(.regularMaterial)
       }
-      .navigationTitle(viewStore.roomName)
       .onAppear {
         viewStore.send(.onAppear)
       }
-      .padding()
+      .navigationTitle(viewStore.roomName)
     }
   }
 }

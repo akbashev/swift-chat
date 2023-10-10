@@ -4,6 +4,7 @@ import EventSource
 import Hummingbird
 import Backend
 import Frontend
+import NIO
 import FoundationEssentials
 
 enum Main: Node {
@@ -20,9 +21,7 @@ enum Main: Node {
       $0.bindHost = host
       $0.bindPort = port
     }
-    let connectionManager = try await ConnectionManager(
-      actorSystem: mainNode
-    )
+    let persistencePool = PersistencePool(actorSystem: mainNode)
     let app = HBApplication(
       configuration: .init(
         address: .hostname(
@@ -36,12 +35,19 @@ enum Main: Node {
     app.encoder = JSONEncoder()
     app.decoder = JSONDecoder()
 
-    let httpClient = HttpClient(router: app.router)
-    let wsClient = WebsocketClient(wsBuilder: app.ws)
-    
-    await httpClient.configure(api: connectionManager.api)
-    await wsClient.configure(api: connectionManager.api)
-    
+    Api
+      .configure(
+        router: app.router,
+        api: .live(
+          persistencePool: persistencePool
+        )
+      )
+    let wsClient = WebsocketClient(
+      actorSystem: mainNode,
+      wsBuilder: app.ws,
+      persistencePool: persistencePool
+    )
+        
     try app.start()
     try await mainNode.terminated
   }

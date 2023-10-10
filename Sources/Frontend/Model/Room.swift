@@ -10,7 +10,6 @@ public struct SearchRoomRequest: Sendable, Equatable, HBResponseCodable {
   public let query: String
 }
 
-
 public struct RoomResponse: Sendable, Equatable, HBResponseCodable {
   public let id: UUID
   public let name: String

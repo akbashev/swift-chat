@@ -39,15 +39,17 @@ public struct WebSocketClient {
   }
   
   var open: @Sendable (ID, URL, [String]) async -> AsyncStream<Action>
+  var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
   var receive: @Sendable (ID) async throws -> AsyncStream<TaskResult<Message>>
-  var send: @Sendable (ID, URLSessionWebSocketTask.Message) async throws -> Void
-  var sendPing: @Sendable (ID) async throws -> Void
+  var send: @Sendable (ID, URLSessionWebSocketTask.Message) async throws -> ()
+  var sendPing: @Sendable (ID) async throws -> ()
 }
 
 extension WebSocketClient: DependencyKey {
   public static var liveValue: Self {
     return Self(
       open: { await WebSocketActor.shared.open(id: $0, url: $1, protocols: $2) },
+      close: { try await WebSocketActor.shared.close(id: $0, with: $1, reason: $2) },
       receive: { try await WebSocketActor.shared.receive(id: $0) },
       send: { try await WebSocketActor.shared.send(id: $0, message: $1) },
       sendPing: { try await WebSocketActor.shared.sendPing(id: $0) }
@@ -153,6 +155,7 @@ extension WebSocketClient: DependencyKey {
   
   public static let testValue = Self(
     open: unimplemented("\(Self.self).open", placeholder: AsyncStream.never),
+    close: unimplemented("\(Self.self).close"),
     receive: unimplemented("\(Self.self).receive"),
     send: unimplemented("\(Self.self).send"),
     sendPing: unimplemented("\(Self.self).sendPing")

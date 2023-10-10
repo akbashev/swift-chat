@@ -83,6 +83,10 @@ public distributed actor Room {
       }
     }
   }
+  
+  deinit {
+    print("deinit")
+  }
 }
 
 extension Room {
