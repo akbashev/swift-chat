@@ -9,7 +9,7 @@ import EventSource
 import DistributedCluster
 import PostgresNIO
 
-public actor WebsocketClient {
+actor WebsocketClient {
   
   private let actorSystem: ClusterSystem
   private let persistencePool: PersistencePool

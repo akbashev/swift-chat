@@ -29,14 +29,15 @@ public struct RoomView: View {
           isSending: $0.$isSending,
           userId: $0.user.id,
           messages: $0.receivedMessages,
-          messagesToSend: $0.messagesToSend.compactMap { message -> String? in
-            switch message {
-            case .message(let text):
-              return text
-            default:
-              return .none
-            }
-          },
+          messagesToSend: $0.messagesToSend
+            .compactMap { message -> String? in
+              switch message {
+              case .message(let text):
+                return text
+              default:
+                return .none
+              }
+            },
           roomName: $0.room.name
         )
       }

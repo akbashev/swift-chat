@@ -9,7 +9,7 @@ import EventSource
 import DistributedCluster
 import PostgresNIO
 
-public actor WebsocketConnection {
+actor WebsocketConnection {
   
   private let persistence: Persistence
   private let roomInfo: RoomInfo
@@ -18,7 +18,7 @@ public actor WebsocketConnection {
   private let user: User
   private let ws: HBWebSocket
   private var listeningTask: Task<Void, Error>?
-
+  
   init(
     actorSystem: ClusterSystem,
     persistence: Persistence,
@@ -49,7 +49,7 @@ public actor WebsocketConnection {
       actorSystem: actorSystem,
       userInfo: userInfo,
       reply: .init { output in
-        /// 3. Start listening for messages from other users
+        /// Start listening for messages from other users
         switch output {
         case let .message(message, userInfo, _):
           let response = ChatResponse(
@@ -67,15 +67,25 @@ public actor WebsocketConnection {
   }
   
   func start(ws: HBWebSocket) {
-    Task {
+    self.listeningTask = Task {
+      /// Join to the Room and start sending user messages
       await self.sendOldMessages()
-      try? await self.greeting()
-      self.listenFor(messages: ws.readStream())
+      await self.join()
+      await self.listenFor(messages: ws.readStream())
     }
   }
   
-  func sendOldMessages() async {
-    /// 5. Fetch all current room messages
+  func close() {
+    self.listeningTask?.cancel()
+    self.listeningTask = .none
+    Task {
+      _ = try? await self.user.send(message: .disconnect, to: self.room)
+      try? await self.ws.close()
+    }
+  }
+  
+  /// Fetch all current room messages
+  private func sendOldMessages() async {
     let messages = (try? await room.getMessages()) ?? []
     let users = await withTaskGroup(of: UserModel?.self) { group in
       for message in messages {
@@ -94,56 +104,60 @@ public actor WebsocketConnection {
           partialResult.append(response)
         }
     }
-    let responses = messages.compactMap { message -> ChatResponse? in
-      switch message.message {
-      case .message(let text):
-        guard
-          let userModel = users
-            .first(where: { $0.id == message.userId.rawValue })
-        else { return .none }
-        return ChatResponse(
-          createdAt: message.createdAt,
-          user: .init(userModel),
-          message: .init(.message(text))
-        )
-      default:
-        return .none
+    let responses = messages
+      .compactMap { message -> ChatResponse? in
+        switch message.message {
+        case .message(let text):
+          guard
+            let userModel = users
+              .first(where: { $0.id == message.userId.rawValue })
+          else { return .none }
+          return ChatResponse(
+            createdAt: message.createdAt,
+            user: .init(userModel),
+            message: .init(.message(text))
+          )
+        default:
+          return .none
+        }
       }
-    }
     self.send(messages: responses)
   }
   
-  func greeting() async throws {
-    let messageInfo = try await user.send(message: .join, to: room)
-    self.send(
-      message: ChatResponse(
-        createdAt: messageInfo.createdAt,
-        user: .init(self.userInfo),
-        message: .init(messageInfo.message)
+  private func join() async {
+    do {
+      let messageInfo = try await user.send(message: .join, to: room)
+      self.send(
+        message: ChatResponse(
+          createdAt: messageInfo.createdAt,
+          user: .init(self.userInfo),
+          message: .init(messageInfo.message)
+        )
       )
-    )
-  }
-
-  /// 6. Join to the Room and start sending user messages
-  private func listenFor(
-    messages: AsyncStream<WebSocketData>
-  ) {
-    self.listeningTask = Task {
-      for await message in messages {
-        guard !Task.isCancelled else {
-          self.close()
-          return
-        }
-        do {
-          try await self.handle(message: message)
-        } catch {
-          self.close()
-        }
-      }
+    } catch {
+      self.close()
     }
   }
   
-  func handle(message: WebSocketData) async throws {
+  private func listenFor(
+    messages: AsyncStream<WebSocketData>
+  ) async {
+    for await message in messages {
+      guard !Task.isCancelled else {
+        self.close()
+        return
+      }
+      do {
+        try await self.handle(message: message)
+      } catch {
+        self.close()
+      }
+    }
+  }
+}
+
+extension WebsocketConnection {
+  private func handle(message: WebSocketData) async throws {
     switch message {
     case .text(let string):
       try await self.send(
@@ -169,20 +183,11 @@ public actor WebsocketConnection {
     }
   }
   
-  func close() {
-    self.listeningTask?.cancel()
-    self.listeningTask = .none
-    Task {
-      _ = try? await self.user.send(message: .disconnect, to: self.room)
-      try? await self.ws.close()
-    }
-  }
-  
-  func send(response: MessageInfo) {
+  private func send(response: MessageInfo) {
     self.send(responses: [response])
   }
   
-  func send(responses: [MessageInfo]) {
+  private func send(responses: [MessageInfo]) {
     self.send(
       messages: responses.map {
         ChatResponse(
@@ -194,11 +199,11 @@ public actor WebsocketConnection {
     )
   }
   
-  func send(message: ChatResponse) {
+  private func send(message: ChatResponse) {
     self.send(messages: [message])
   }
   
-  func send(messages: [ChatResponse]) {
+  private func send(messages: [ChatResponse]) {
     var data = ByteBuffer()
     _ = try? data.writeJSONEncodable(messages)
     _ = self.ws.write(.binary(data))
@@ -209,30 +214,22 @@ extension MessageInfo: PostgresCodable {}
 
 fileprivate extension ChatResponse.Message {
   init(_ message: Backend.Message) {
-    switch message {
-    case .join:
-      self = .join
-    case .message(let string):
-      self = .message(string)
-    case .leave:
-      self = .leave
-    case .disconnect:
-      self = .disconnect
+    self = switch message {
+    case .join: .join
+    case .message(let string): .message(string)
+    case .leave: .leave
+    case .disconnect: .disconnect
     }
   }
 }
 
 fileprivate extension Backend.Message {
   init(_ message: ChatResponse.Message) {
-    switch message {
-    case .join:
-      self = .join
-    case .message(let string):
-      self = .message(string)
-    case .leave:
-      self = .leave
-    case .disconnect:
-      self = .disconnect
+    self = switch message {
+    case .join: .join
+    case .message(let string): .message(string)
+    case .leave: .leave
+    case .disconnect: .disconnect
     }
   }
 }

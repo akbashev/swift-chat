@@ -2,6 +2,10 @@ import Backend
 import Distributed
 import DistributedCluster
 
+/// Ok, why we need a manager on top of room pools? Rooms are dynamic, which means they're created when there is a connection,
+/// but in order to distributed nodes on different nodes—we need one RoomPool per node.
+/// Then on top of it if I've created RoomPoolManager which listens to RoomPools lifecycle on different nodes.
+/// Actually still note sure about naming. **Check other frameworks and platforms on how it's managed there**.
 distributed actor RoomPoolManager: LifecycleWatch {
 
   enum Error: Swift.Error {
