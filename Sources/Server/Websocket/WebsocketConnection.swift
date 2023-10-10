@@ -16,7 +16,7 @@ actor WebsocketConnection {
   private let userInfo: UserInfo
   private let room: Room
   private let user: User
-  private let ws: HBWebSocket
+  private let ws: WebsocketApi.WebSocket
   private var listeningTask: Task<Void, Error>?
   
   init(
@@ -57,21 +57,19 @@ actor WebsocketConnection {
             user: .init(userInfo),
             message: .init(message.message)
           )
-          var data = ByteBuffer()
-          _ = try? data.writeJSONEncodable([response])
-          _ = info.ws.write(.binary(data))
+          info.ws.write([response])
         }
       }
     )
     self.start(ws: info.ws)
   }
   
-  func start(ws: HBWebSocket) {
+  func start(ws: WebsocketApi.WebSocket) {
     self.listeningTask = Task {
       /// Join to the Room and start sending user messages
       await self.sendOldMessages()
       await self.join()
-      await self.listenFor(messages: ws.readStream())
+      await self.listenFor(messages: ws.read)
     }
   }
   
@@ -140,7 +138,7 @@ actor WebsocketConnection {
   }
   
   private func listenFor(
-    messages: AsyncStream<WebSocketData>
+    messages: AsyncStream<WebsocketApi.WebSocket.Message>
   ) async {
     for await message in messages {
       guard !Task.isCancelled else {
@@ -157,7 +155,9 @@ actor WebsocketConnection {
 }
 
 extension WebsocketConnection {
-  private func handle(message: WebSocketData) async throws {
+  private func handle(
+    message: WebsocketApi.WebSocket.Message
+  ) async throws {
     switch message {
     case .text(let string):
       try await self.send(
@@ -167,11 +167,7 @@ extension WebsocketConnection {
         )
       )
       break
-    case .binary(var data):
-      guard let messages = try data.readJSONDecodable(
-        [ChatResponse.Message].self,
-        length: data.readableBytes
-      ) else { break }
+    case .response(let messages):
       for message in messages {
         try await self.send(
           response: user.send(
@@ -204,9 +200,7 @@ extension WebsocketConnection {
   }
   
   private func send(messages: [ChatResponse]) {
-    var data = ByteBuffer()
-    _ = try? data.writeJSONEncodable(messages)
-    _ = self.ws.write(.binary(data))
+    self.ws.write(messages)
   }
 }
 

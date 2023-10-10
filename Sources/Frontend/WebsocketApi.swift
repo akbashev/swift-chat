@@ -1,6 +1,7 @@
 import HummingbirdFoundation
 import FoundationEssentials
 import HummingbirdWebSocket
+import HummingbirdWSCore
 
 public enum WebsocketApi {
   
@@ -8,10 +9,20 @@ public enum WebsocketApi {
     public struct Info {
       public let userId: UUID
       public let roomId: UUID
-      public let ws: HBWebSocket
+      public let ws: WebSocket
     }
     case connect(Info)
     case close(Info)
+  }
+  
+  public struct WebSocket {
+    public enum Message {
+      case text(String)
+      case response([ChatResponse.Message])
+    }
+    public let write: ([ChatResponse]) -> ()
+    public let close: () async throws -> ()
+    public let read: AsyncStream<Message>
   }
   
   public static func configure(
@@ -21,23 +32,28 @@ public enum WebsocketApi {
       builder.on(
         "/chat",
         shouldUpgrade: { request in
-          guard request.uri.queryParameters["user_id"] != nil,
-                request.uri.queryParameters["room_id"] != nil
+          guard
+            request.uri.queryParameters["user_id"] != nil,
+            request.uri.queryParameters["room_id"] != nil
           else {
             throw HBHTTPError(.badRequest)
           }
           return nil
         },
         onUpgrade: { request, ws -> HTTPResponseStatus in
-          guard let userId: UUID = request.uri.queryParameters["user_id"].flatMap(UUID.init(uuidString:)),
-                let roomId: UUID = request.uri.queryParameters["room_id"].flatMap(UUID.init(uuidString:)) else {
+          guard
+            let userId: UUID = request.uri.queryParameters["user_id"]
+              .flatMap(UUID.init(uuidString:)),
+            let roomId: UUID = request.uri.queryParameters["room_id"]
+              .flatMap(UUID.init(uuidString:))
+          else {
             try await ws.close()
             return .badRequest
           }
           let info = Event.Info(
             userId: userId,
             roomId: roomId,
-            ws: ws
+            ws: .init(ws)
           )
           ws.initiateAutoPing(interval: .seconds(60))
           ws.onClose { _ in
@@ -51,3 +67,31 @@ public enum WebsocketApi {
   }
 }
 
+extension WebsocketApi.WebSocket {
+  init(_ ws: HBWebSocket) {
+    self.close = { [weak ws] in
+      try await ws?.close()
+    }
+    self.write = { [weak ws] messages in
+      var data = ByteBuffer()
+      _ = try? data.writeJSONEncodable(messages)
+      _ = ws?.write(.binary(data))
+    }
+    self.read = .init { continuation in
+      Task {
+        for await message in ws.readStream() {
+          switch message {
+          case .text(let string):
+            continuation.yield(.text(string))
+          case .binary(var data):
+            guard let messages = try? data.readJSONDecodable(
+              [ChatResponse.Message].self,
+              length: data.readableBytes
+            ) else { break }
+            continuation.yield(.response(messages))
+          }
+        }
+      }
+    }
+  }
+}

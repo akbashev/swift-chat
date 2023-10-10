@@ -178,12 +178,15 @@ public struct Room: Reducer {
         return .none
       case .webSocket(.didClose):
         state.connectivityState = .disconnected
-        return .cancel(id: WebSocketClient.ID())
+        return .run { send in
+          Task.cancel(id: WebSocketClient.ID())
+          try await Task.sleep(for: .seconds(3))
+          await send(.connect)
+        }
       case .webSocket(.didOpen):
         state.connectivityState = .connected
         state.receivedMessages.removeAll()
         return .none
-        
       case .binding:
         return .none
       }
