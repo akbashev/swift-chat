@@ -134,9 +134,7 @@ public struct Room: Reducer {
       case .receivedSocketMessage(.failure):
         state.connectivityState = .disconnected
         return .run { send in
-          Task.cancel(id: WebSocketClient.ID())
-          try await Task.sleep(for: .seconds(3))
-          await send(.connect)
+          try await self.webSocket.close(WebSocketClient.ID(), .normalClosure, .none)
         }
       case .send(let messages):
         state.isSending = true
