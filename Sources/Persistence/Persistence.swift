@@ -3,6 +3,16 @@ import DistributedCluster
 import FoundationEssentials
 import PostgresNIO
 
+/**
+ This is a starting point to create some persistence with actors, thus very rudimentary.
+ It's working for now, but there is not consistency handling acros multiple nodes.
+ For now not sure yet about next steps to be taken...
+ 
+ References:
+ 1. https://doc.akka.io/docs/akka/current/typed/distributed-data.html
+ 2. https://www.erlang.org/doc/man/mnesia.html
+ 3. https://www.cs.cornell.edu/andru/papers/mixt
+ */
 protocol Persistable {
   func create(input: Persistence.Input) async throws
   func update(input: Persistence.Input) async throws

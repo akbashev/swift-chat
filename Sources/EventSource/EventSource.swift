@@ -3,7 +3,17 @@ import DistributedCluster
 import FoundationEssentials
 import PostgresNIO
 
-// TODO: Create seperate models for Store
+/**
+ This is a starting point to create some Event Sourcing with actors, thus very rudimentary.
+ For now it's all about saving and getting messages (Commands).
+ Next steps:
+ 1. Make Event generic
+ 2. Add State (with snapshotting on top?)
+ 
+ References:
+ 1. https://doc.akka.io/docs/akka/current/typed/persistence.html
+ 2. https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing
+ */
 protocol Sourceable<Command> {
   associatedtype Command: Codable
   func save(command: Command) async throws

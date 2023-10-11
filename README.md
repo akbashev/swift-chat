@@ -18,10 +18,18 @@ Swift 5.9 is needed (was playing with new Swift Foundations).
 5. Open `swift-chat` app on device/simulator. Create user and room name, and connect. Open another instance on different device/simulator and connect to the room by entering same name.
 
 ## TODO:
-1. ~~Check if actors are cleaned from memory when websocket disconnects.~~
-2. ~~Some database with simple event sourcing.~~
-3. ~~Basic clustering with fault tolerance. Check different scenarios like room node crashes and etc.~~
-4. Testing.
-5. Tracing.
-6. Improve scalibility and fault tolerance.
-7. TBD
+(no priorities, so no order)
+* ~~Check if actors are cleaned from memory when websocket disconnects.~~
+* ~~Some database with simple event sourcing.~~
+* ~~Basic clustering with fault tolerance. Check different scenarios like room node crashes and etc.~~
+* Add some basic documentation.
+* Testing—at least covering `Room`, `User` and `WebsocketConnection` actors would be nice.
+* Tracing—debugging is quite hard thing even on a single node. Add [Swift Distributed Tracing](https://github.com/apple/swift-distributed-tracing)
+* Interesting to play with [Swift OpenAPI generator](https://github.com/apple/swift-openapi-generator).
+* Improve scalibility and fault tolerance:
+  1. Add [node discovery](https://swiftpackageindex.com/apple/swift-distributed-actors/main/documentation/distributedcluster/clustering#Automatic-Node-Discovery) logic.
+  2. Improve error handling. 
+* Currently Event sourcing is not there yet and rudimentary (without state, recovery and snapshoting). Invest some time into this.
+* Persistence consistency. Not sure where to start here yet.
+* Spining some example on real device/vps to get more info and for fun :)
+* TBD
