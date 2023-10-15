@@ -6,6 +6,10 @@ import Persistence
 import Hummingbird
 import Logging
 
+/**
+ Not actually pool, I guess? Just started to write some custom pool and name sticks now.
+ Not sure what is proper name.
+ */
 distributed actor PersistencePool: LifecycleWatch {
   
   enum Error: Swift.Error, LocalizedError {

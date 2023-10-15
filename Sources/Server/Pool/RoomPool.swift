@@ -3,6 +3,10 @@ import DistributedCluster
 import EventSource
 import Backend
 
+/**
+ Not actually pool, I guess? Just started to write some custom pool and name sticks now.
+ Not sure what is proper name.
+ */
 distributed actor RoomPool: LifecycleWatch {
 
   private lazy var rooms: Set<Room> = .init()

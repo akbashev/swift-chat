@@ -36,11 +36,11 @@ enum Main: Node {
     app.decoder = JSONDecoder()
 
     Api
+      .live(
+        persistencePool: persistencePool
+      )
       .configure(
-        router: app.router,
-        api: .live(
-          persistencePool: persistencePool
-        )
+        router: app.router
       )
     let wsClient = WebsocketClient(
       actorSystem: mainNode,

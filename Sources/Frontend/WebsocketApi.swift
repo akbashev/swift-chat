@@ -25,6 +25,10 @@ public enum WebsocketApi {
     public let read: AsyncStream<Message>
   }
   
+  /**
+   Think there is no back pressure here, but don't wanna invent a wheel and seems like we can just wait a bit to improve:
+   https://github.com/apple/swift-evolution/blob/main/proposals/0406-async-stream-backpressure.md
+  */
   public static func configure(
     builder: HBWebSocketBuilder
   ) -> AsyncStream<Event> {
@@ -78,6 +82,7 @@ extension WebsocketApi.WebSocket {
       _ = ws?.write(.binary(data))
     }
     self.read = .init { continuation in
+      /// Quickly checked and see *.map()* for AsyncSequence, but don't get a bit how to use it 🤔
       Task {
         for await message in ws.readStream() {
           switch message {

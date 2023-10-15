@@ -28,9 +28,8 @@ public struct Api: Sendable {
 }
 
 extension Api {
-  public static func configure(
-    router: HBRouterBuilder,
-    api: Self
+  public func configure(
+    router: HBRouterBuilder
   ) {
     router.get("hello") { _ in
       return "Hello"
@@ -38,18 +37,18 @@ extension Api {
     router.post("user") { req in
       guard let user = try? req.decode(as: CreateUserRequest.self)
       else { throw HBHTTPError(.badRequest) }
-      return try await api.createUser(user)
+      return try await self.createUser(user)
     }
     router.post("room") { req in
       guard let room = try? req.decode(as: CreateRoomRequest.self)
       else { throw HBHTTPError(.badRequest) }
-      return try await api.creteRoom(room)
+      return try await self.creteRoom(room)
     }
     router.get("room/search") { req in
       guard let query = req.uri
         .queryParameters
         .get("query", as: String.self) else { throw HBHTTPError(.badRequest) }
-      return try await api.searchRoom(.init(query: query))
+      return try await self.searchRoom(.init(query: query))
     }
   }
 }
