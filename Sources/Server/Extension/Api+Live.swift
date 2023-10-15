@@ -4,11 +4,11 @@ import Persistence
 
 extension Api {
   static func live(
-    persistencePool: PersistencePool
+    databaseNodeObserver: DatabaseNodeObserver
   ) -> Self {
     Self(
-      createUser: { [weak persistencePool] request in
-        let persistence = try await persistencePool?.get()
+      createUser: { [weak databaseNodeObserver] request in
+        let persistence = try await databaseNodeObserver?.get().getPersistence()
         let name = request.name
         let id = UUID()
         try await persistence?.create(
@@ -25,8 +25,8 @@ extension Api {
           name: name
         )
       },
-      creteRoom: { [weak persistencePool] request in
-        let persistence = try await persistencePool?.get()
+      creteRoom: { [weak databaseNodeObserver] request in
+        let persistence = try await databaseNodeObserver?.get().getPersistence()
         let id = UUID()
         let name = request.name
         let description = request.description
@@ -46,8 +46,8 @@ extension Api {
           description: description
         )
       },
-      searchRoom: { [weak persistencePool] request in
-        let persistence = try await persistencePool?.get()
+      searchRoom: { [weak databaseNodeObserver] request in
+        let persistence = try await databaseNodeObserver?.get().getPersistence()
         let query = request.query
         let rooms = try await persistence?.searchRoom(query: query) ?? []
         return rooms.map {

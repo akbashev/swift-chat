@@ -23,7 +23,7 @@ struct Server: AsyncParsableCommand {
     try await switch self.cluster {
     case .main: run(Main.self)
     case .room: run(RoomNode.self)
-    case .database: run(Database.self)
+    case .database: run(DatabaseNode.self)
     }
   }
   

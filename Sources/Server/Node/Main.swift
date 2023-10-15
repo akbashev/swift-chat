@@ -21,7 +21,7 @@ enum Main: Node {
       $0.bindHost = host
       $0.bindPort = port
     }
-    let persistencePool = PersistencePool(actorSystem: mainNode)
+    let databaseNodeObserver = DatabaseNodeObserver(actorSystem: mainNode)
     let app = HBApplication(
       configuration: .init(
         address: .hostname(
@@ -37,7 +37,7 @@ enum Main: Node {
 
     Api
       .live(
-        persistencePool: persistencePool
+        databaseNodeObserver: databaseNodeObserver
       )
       .configure(
         router: app.router
@@ -45,7 +45,7 @@ enum Main: Node {
     let wsClient = WebsocketClient(
       actorSystem: mainNode,
       wsBuilder: app.ws,
-      persistencePool: persistencePool
+      databaseNodeObserver: databaseNodeObserver
     )
         
     try app.start()

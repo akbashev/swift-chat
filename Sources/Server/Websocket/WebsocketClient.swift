@@ -12,23 +12,21 @@ import PostgresNIO
 actor WebsocketClient {
   
   private let actorSystem: ClusterSystem
-  private let persistencePool: PersistencePool
-  private let eventSourcePool: EventSourcePool
-  private let roomPoolManager: RoomPoolManager
+  private let databaseNodeObserver: DatabaseNodeObserver
+  private let roomNodeObserver: RoomNodeObserver
   private var connections: [UUID: WebsocketConnection] = [:]
   private var listeningTask: Task<Void, any Error>?
 
   init(
     actorSystem: ClusterSystem,
     wsBuilder: HBWebSocketBuilder,
-    persistencePool: PersistencePool
+    databaseNodeObserver: DatabaseNodeObserver
   ) {
     self.actorSystem = actorSystem
     wsBuilder.addUpgrade()
     wsBuilder.add(middleware: HBLogRequestsMiddleware(.info))
-    self.persistencePool = persistencePool
-    self.eventSourcePool = .init(actorSystem: actorSystem)
-    self.roomPoolManager = .init(actorSystem: actorSystem)
+    self.databaseNodeObserver = databaseNodeObserver
+    self.roomNodeObserver = RoomNodeObserver(actorSystem: actorSystem)
     
     let events = WebsocketApi.configure(builder: wsBuilder)
     self.listenForConnections(events: events)
@@ -48,11 +46,12 @@ actor WebsocketClient {
       await self.connections[info.userId]?.close()
       self.connections[info.userId] = .none
     case .connect(let info):
+      let database = try await self.databaseNodeObserver.get()
       self.connections[info.userId] = try await WebsocketConnection(
         actorSystem: self.actorSystem,
-        persistence: self.persistencePool.get(),
-        eventSource: self.eventSourcePool.get(),
-        roomPool: self.roomPoolManager.get(),
+        persistence: database.getPersistence(),
+        eventSource: database.getEventSource(),
+        roomNode: self.roomNodeObserver.get(),
         info: info
       )
     }

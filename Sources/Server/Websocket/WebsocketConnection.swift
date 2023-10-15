@@ -23,7 +23,7 @@ actor WebsocketConnection {
     actorSystem: ClusterSystem,
     persistence: Persistence,
     eventSource: EventSource<MessageInfo>,
-    roomPool: RoomPool,
+    roomNode: RoomNode,
     info: WebsocketApi.Event.Info
   ) async throws {
     self.persistence = persistence
@@ -34,7 +34,7 @@ actor WebsocketConnection {
       description: roomModel.description
     )
     self.roomInfo = roomInfo
-    self.room = try await roomPool.findRoom(
+    self.room = try await roomNode.findRoom(
       with: roomInfo,
       eventSource: eventSource
     )
