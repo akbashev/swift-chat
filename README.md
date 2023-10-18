@@ -12,8 +12,10 @@ Swift 5.9 is needed (was playing with new Swift Foundations).
 
 3. Configure scheme environment to run a database (DB_USERNAME, DB_PASSWORD and DB_NAME)
 
-4. Run `Server` either through Xcode schemes or using command line tools. You need to provide info on which node and where you want to start, e.g. `main/room/database --host 127.0.0.1 --port 2551`. 
-  Additionaly you can start a seperate `Room` and `Database` to play.
+4. Run `fronend` node either through Xcode schemes or using command line tools. You need to provide info on which node and where you want to start, e.g. `frontend --host 127.0.0.1 --port 2550`. 
+  Additionaly you can start seperate `room` and `database` nodes to play:
+  `room --host 127.0.0.1 --port 2551` or `database --host 127.0.0.1 --port 2552`
+  __DATABASE NODE FAILURES ARE NOT HANDLEDE AT THE MOMENT__
 
 5. Open `swift-chat` app on device/simulator. Create user and room name, and connect. Open another instance on different device/simulator and connect to the room by entering same name.
 
@@ -22,6 +24,7 @@ Swift 5.9 is needed (was playing with new Swift Foundations).
 * ~~Check if actors are cleaned from memory when websocket disconnects.~~
 * ~~Some database with simple event sourcing.~~
 * ~~Basic clustering with fault tolerance. Check different scenarios like room node crashes and etc.~~
+* __DATABASE NODE FAILURES ARE NOT HANDLEDE AT THE MOMENT__
 * Add some basic documentation.
 * Testing—at least covering `Room`, `User` and `WebsocketConnection` actors would be nice.
 * Tracing—debugging is quite hard thing even on a single node. Add [Swift Distributed Tracing](https://github.com/apple/swift-distributed-tracing)

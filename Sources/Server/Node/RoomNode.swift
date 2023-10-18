@@ -60,7 +60,6 @@ extension RoomNode: Node {
     port: Int
   ) async throws {
     let roomNode = await ClusterSystem("room") {
-      $0.downingStrategy = .timeout(.serverDefault)
       $0.bindHost = host
       $0.bindPort = port
     }
