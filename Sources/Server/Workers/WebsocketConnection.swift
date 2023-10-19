@@ -5,7 +5,6 @@ import FoundationEssentials
 import Frontend
 import Backend
 import Persistence
-import EventSource
 import DistributedCluster
 import PostgresNIO
 
@@ -46,8 +45,7 @@ actor WebsocketConnection {
     )
     self.roomInfo = roomInfo
     self.room = try await roomNode.findRoom(
-      with: roomInfo,
-      eventSource: try await databaseNode.getEventSource()
+      with: roomInfo
     )
     let userModel = try await persistence.getUser(id: info.userId)
     let userInfo = UserInfo(

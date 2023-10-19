@@ -13,7 +13,7 @@ import PostgresNIO
 /// Doesn't look quite elegant and not sure if it's a correct way of handling things.
 /// Also, how do you load balance HBApplication? 🤔
 /// How does this work in other frameworks? 🤔
-distributed actor FrontendNode: LifecycleWatch {
+distributed actor FrontendNode {
   
   enum Error: Swift.Error {
     case noConnection
@@ -46,19 +46,6 @@ distributed actor FrontendNode: LifecycleWatch {
     self.findRoomNodes()
     self.findDatabaseNodes()
     try app.start()
-  }
-  
-  
-  func terminated(actor id: DistributedCluster.ActorID) {
-    if let roomNode = self.roomNodes.first(where: { $0.id == id }) {
-      self.roomNodes.remove(roomNode)
-    }
-    if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
-      self.httpConnections[id] = .none
-      self.databaseNodes.remove(databaseNode)
-    }
-    
-    self.checkConnections(with: id)
   }
 }
 
@@ -99,14 +86,27 @@ extension FrontendNode {
   func checkConnections(with id: DistributedCluster.ActorID) {
     for (userId, connection) in self.wsConnections {
       let connectionInfo = connection.info
-      if connectionInfo.databaseNodeId == id || connectionInfo.databaseNodeId == id {
+      if connectionInfo.roomNodeId == id || connectionInfo.databaseNodeId == id {
         self.closeConnectionFor(userId: userId)
       }
     }
   }
 }
 
-extension FrontendNode {
+extension FrontendNode: LifecycleWatch {
+  
+  func terminated(actor id: DistributedCluster.ActorID) {
+    if let roomNode = self.roomNodes.first(where: { $0.id == id }) {
+      self.roomNodes.remove(roomNode)
+    }
+    if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
+      self.httpConnections[id] = .none
+      self.databaseNodes.remove(databaseNode)
+    }
+    
+    self.checkConnections(with: id)
+  }
+  
   private func findDatabaseNodes() {
     guard self.databaseNodeListeningTask == nil else {
       actorSystem.log.info("Already looking for room pools")
@@ -119,6 +119,20 @@ extension FrontendNode {
         self.watchTermination(of: databaseNode)
         
         self.httpConnections[databaseNode.id] = try? await spawnConnection(for: databaseNode)
+      }
+    }
+  }
+  
+  private func findRoomNodes() {
+    guard self.roomNodeListeningTask == nil else {
+      actorSystem.log.info("Already looking for room nodes")
+      return
+    }
+    
+    self.roomNodeListeningTask = Task {
+      for await roomNode in await actorSystem.receptionist.listing(of: .roomNodes) {
+        self.roomNodes.insert(roomNode)
+        self.watchTermination(of: roomNode)
       }
     }
   }
@@ -138,22 +152,7 @@ extension FrontendNode {
     self.localDatabaseNode = databaseNode
     return databaseNode
   }
-}
 
-extension FrontendNode {
-  private func findRoomNodes() {
-    guard self.roomNodeListeningTask == nil else {
-      actorSystem.log.info("Already looking for room nodes")
-      return
-    }
-    
-    self.roomNodeListeningTask = Task {
-      for await roomNode in await actorSystem.receptionist.listing(of: .roomNodes) {
-        self.roomNodes.insert(roomNode)
-        self.watchTermination(of: roomNode)
-      }
-    }
-  }
   
   private func getRoomNode() async -> RoomNode {
     guard let roomNode = self.roomNodes.randomElement() else {
