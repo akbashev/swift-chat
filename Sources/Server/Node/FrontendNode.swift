@@ -10,7 +10,7 @@ import Distributed
 import DistributedCluster
 import PostgresNIO
  
-/// Don't look quite elegant and not sure if it's a correct way of handling things.
+/// Doesn't look quite elegant and not sure if it's a correct way of handling things.
 /// Also, how do you load balance HBApplication? 🤔
 /// How does this work in other frameworks? 🤔
 distributed actor FrontendNode: LifecycleWatch {
@@ -29,6 +29,11 @@ distributed actor FrontendNode: LifecycleWatch {
   private var databaseNodeListeningTask: Task<Void, Never>?
   private var roomNodeListeningTask: Task<Void, Never>?
   
+  /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
+  // TODO: How do I clean up them when no more needed?
+  private var localDatabaseNode: DatabaseNode?
+  private var localRoomNode: RoomNode?
+  
   init(
     actorSystem: ClusterSystem,
     app: HBApplication
@@ -44,7 +49,7 @@ distributed actor FrontendNode: LifecycleWatch {
   }
   
   
-  func terminated(actor id: DistributedCluster.ActorID) async {
+  func terminated(actor id: DistributedCluster.ActorID) {
     if let roomNode = self.roomNodes.first(where: { $0.id == id }) {
       self.roomNodes.remove(roomNode)
     }
@@ -52,8 +57,9 @@ distributed actor FrontendNode: LifecycleWatch {
       self.httpConnections[id] = .none
       self.databaseNodes.remove(databaseNode)
     }
+    
+    self.checkConnections(with: id)
   }
-  
 }
 
 extension FrontendNode {
@@ -69,18 +75,33 @@ extension FrontendNode {
   private func handle(event: WebsocketApi.Event) async throws {
     switch event {
     case .close(let info):
-      await self.wsConnections[info.userId]?.close()
-      self.wsConnections[info.userId] = .none
+      self.closeConnectionFor(userId: info.userId)
     case .connect(let info):
       let roomNode = await self.getRoomNode()
       let databaseNode = try await self.getDatabaseNode()
+      // userId key won't work with mulptiple devices
+      // TODO: Create another key
       self.wsConnections[info.userId] = try await WebsocketConnection(
         actorSystem: self.actorSystem,
-        persistence: databaseNode.getPersistence(),
-        eventSource: databaseNode.getEventSource(),
+        databaseNode: databaseNode,
         roomNode: roomNode,
         info: info
       )
+    }
+  }
+  
+  func closeConnectionFor(userId: UUID) {
+    let connection = self.wsConnections[userId]
+    self.wsConnections[userId] = .none
+    Task { await connection?.close() }
+  }
+  
+  func checkConnections(with id: DistributedCluster.ActorID) {
+    for (userId, connection) in self.wsConnections {
+      let connectionInfo = connection.info
+      if connectionInfo.databaseNodeId == id || connectionInfo.databaseNodeId == id {
+        self.closeConnectionFor(userId: userId)
+      }
     }
   }
 }
@@ -110,9 +131,12 @@ extension FrontendNode {
   }
   
   private func spawnDatabaseNode() async throws -> DatabaseNode {
-    try await DatabaseNode(
+    if let localDatabaseNode { return localDatabaseNode }
+    let databaseNode = try await DatabaseNode(
       actorSystem: self.actorSystem
     )
+    self.localDatabaseNode = databaseNode
+    return databaseNode
   }
 }
 
@@ -139,9 +163,12 @@ extension FrontendNode {
   }
   
   private func spawnRoomNode() async -> RoomNode {
-    await RoomNode(
+    if let localRoomNode { return localRoomNode }
+    let roomNode = await RoomNode(
       actorSystem: self.actorSystem
     )
+    self.localRoomNode = roomNode
+    return roomNode
   }
 }
 

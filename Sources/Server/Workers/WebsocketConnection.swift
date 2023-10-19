@@ -11,6 +11,13 @@ import PostgresNIO
 
 actor WebsocketConnection {
   
+  struct ConnectionInfo {
+    let roomNodeId: DistributedCluster.ActorID
+    let databaseNodeId: DistributedCluster.ActorID
+    let info: WebsocketApi.Event.Info
+  }
+  
+  let info: ConnectionInfo
   private let persistence: Persistence
   private let roomInfo: RoomInfo
   private let userInfo: UserInfo
@@ -21,12 +28,16 @@ actor WebsocketConnection {
   
   init(
     actorSystem: ClusterSystem,
-    persistence: Persistence,
-    eventSource: EventSource<MessageInfo>,
+    databaseNode: DatabaseNode,
     roomNode: RoomNode,
     info: WebsocketApi.Event.Info
   ) async throws {
-    self.persistence = persistence
+    self.info = .init(
+      roomNodeId: roomNode.id,
+      databaseNodeId: databaseNode.id,
+      info: info
+    )
+    self.persistence = try await databaseNode.getPersistence()
     let roomModel = try await persistence.getRoom(id: info.roomId)
     let roomInfo = RoomInfo(
       id: roomModel.id,
@@ -36,7 +47,7 @@ actor WebsocketConnection {
     self.roomInfo = roomInfo
     self.room = try await roomNode.findRoom(
       with: roomInfo,
-      eventSource: eventSource
+      eventSource: try await databaseNode.getEventSource()
     )
     let userModel = try await persistence.getUser(id: info.userId)
     let userInfo = UserInfo(

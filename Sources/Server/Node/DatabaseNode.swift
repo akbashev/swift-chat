@@ -12,7 +12,6 @@ distributed actor DatabaseNode {
     case environmentNotSet
   }
     
-  /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
   let eventSource: EventSource<MessageInfo>
   let persistence: Persistence
   
@@ -55,10 +54,8 @@ extension DatabaseNode: Node {
     port: Int
   ) async throws {
     let dbNode = await ClusterSystem("database") {
-      $0.autoLeaderElection = .lowestReachable(minNumberOfMembers: 1)
       $0.bindHost = host
       $0.bindPort = port
-      $0.downingStrategy = .timeout(.default)
     }
     
     dbNode.cluster.join(host: "127.0.0.1", port: 2550)
