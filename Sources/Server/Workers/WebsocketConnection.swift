@@ -10,7 +10,8 @@ import PostgresNIO
 
 actor WebsocketConnection {
 
-  private let persistence: Persistence
+  let persistence: Persistence
+  
   private let userInfo: UserInfo
   private let room: Room
   private let user: User

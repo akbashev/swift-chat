@@ -2,7 +2,7 @@ import FoundationEssentials
 
 public struct RoomInfo: Sendable, Codable, Equatable {
   
-  public struct ID: Sendable, Codable, Equatable, RawRepresentable {
+  public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
     public let rawValue: UUID
     
     public init(rawValue: UUID) {

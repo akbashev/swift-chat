@@ -21,7 +21,6 @@ distributed actor FrontendNode {
   
   private lazy var databaseNodes: Set<DatabaseNode> = .init()
   private lazy var roomNodes: Set<RoomNode> = .init()
-  private lazy var rooms: Set<Room> = .init()
   private var wsConnections: [UUID: WebsocketConnection] = [:]
   /// [DatabaseNode.ID: HttpConnection] dict here. HttpConnection needs persistence.
   private var httpConnections: [DistributedCluster.ActorID: HttpConnection] = [:]
@@ -29,7 +28,6 @@ distributed actor FrontendNode {
   private var wsConnectionListeningTask: Task<Void, Never>?
   private var databaseNodeListeningTask: Task<Void, Never>?
   private var roomNodeListeningTask: Task<Void, Never>?
-  private var roomsListeningTask: Task<Void, Never>?
 
   /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
   // TODO: How do I clean up them when no more needed?
@@ -46,7 +44,6 @@ distributed actor FrontendNode {
     let events = WebsocketApi.configure(builder: app.ws)
     self.listenForConnections(events: events)
     self.findRoomNodes()
-    self.findRooms()
     self.findDatabaseNodes()
     try app.start()
   }
@@ -67,7 +64,6 @@ extension FrontendNode {
     case .close(let info):
       self.closeConnectionFor(userId: info.userId)
     case .connect(let info):
-      let roomNode = await self.getRoomNode()
       let persistence = try await self.getDatabaseNode().getPersistence()
       let room = try await self.findRoom(with: info)
       let userModel = try await persistence.getUser(id: info.userId)
@@ -89,13 +85,16 @@ extension FrontendNode {
     Task { await connection?.close() }
   }
   
-  private func checkConnections(with id: DistributedCluster.ActorID) {
-//    for (userId, connection) in self.wsConnections {
-//      let connectionInfo = connection.info
-//      if connectionInfo.databaseNodeId == id {
-//        self.closeConnectionFor(userId: userId)
-//      }
-//    }
+  private func checkConnections(with persistence: Persistence) {
+    for (userId, connection) in self.wsConnections where connection.persistence == persistence {
+      self.closeConnectionFor(userId: userId)
+    }
+  }
+  
+  private func checkRoomNodes(with eventSource: EventSource<MessageInfo>) async {
+    for roomNode in self.roomNodes {
+      try? await roomNode.closeRooms(with: eventSource)
+    }
   }
   
   private func findRoom(
@@ -111,18 +110,16 @@ extension FrontendNode {
       description: roomModel.description
     )
 
-    for room in self.rooms {
-      let roomId = try await room.getRoomInfo().id
-      if roomInfo.id == roomId {
+    for roomNode in self.roomNodes {
+      if let room = try? await roomNode.findRoom(with: roomInfo) {
         return room
       }
     }
     
     let roomNode = await self.getRoomNode()
-
-    let userModel = try await persistence.getUser(id: info.userId)
     return try await roomNode.spawnRoom(
-      with: roomInfo
+      with: roomInfo,
+      databaseNode: databaseNode
     )
   }
 }
@@ -136,12 +133,11 @@ extension FrontendNode: LifecycleWatch {
     if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
       self.httpConnections[id] = .none
       self.databaseNodes.remove(databaseNode)
+      Task {
+        try await self.checkConnections(with: databaseNode.getPersistence())
+        try await self.checkRoomNodes(with: databaseNode.getEventSource())
+      }
     }
-    if let actor = self.rooms.first(where: { $0.id == id }) {
-      self.rooms.remove(actor)
-    }
-    
-    self.checkConnections(with: id)
   }
   
   private func findDatabaseNodes() {
@@ -206,20 +202,6 @@ extension FrontendNode: LifecycleWatch {
     self.localRoomNode = roomNode
     return roomNode
   }
-  
-  private func findRooms() {
-    guard self.roomsListeningTask == nil else {
-      return self.actorSystem.log.info("Already looking for rooms")
-    }
-    
-    self.roomsListeningTask = Task {
-      for await room in await actorSystem.receptionist.listing(of: .rooms) {
-        self.rooms.insert(room)
-        self.watchTermination(of: room)
-      }
-    }
-  }
-  
 }
 
 extension FrontendNode: RestApi {

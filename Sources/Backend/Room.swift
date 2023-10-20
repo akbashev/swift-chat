@@ -8,7 +8,7 @@ public distributed actor Room {
   public typealias ActorSystem = ClusterSystem
   
   private var state: State
-  private var eventSource: EventSource<MessageInfo>
+  private let eventSource: EventSource<MessageInfo>
   
   distributed func message(_ message: Message, from user: User) async throws -> MessageInfo {
     let messageInfo: MessageInfo = try await MessageInfo(
@@ -42,6 +42,10 @@ public distributed actor Room {
   
   distributed public func getMessages() -> [MessageInfo] {
     self.state.messages
+  }
+  
+  distributed public func getEventSource() -> EventSource<MessageInfo> {
+    self.eventSource
   }
   
   public init(
