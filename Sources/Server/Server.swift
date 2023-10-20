@@ -10,6 +10,7 @@ typealias DefaultDistributedActorSystem = ClusterSystem
 struct Server: AsyncParsableCommand {
   
   enum Cluster: String, ExpressibleByArgument {
+    case standalone
     case frontend
     case room
     case database
@@ -21,6 +22,7 @@ struct Server: AsyncParsableCommand {
   
   func run() async throws {
     try await switch self.cluster {
+    case .standalone: run(StandaloneNode.self)
     case .frontend: run(FrontendNode.self)
     case .room: run(RoomNode.self)
     case .database: run(DatabaseNode.self)
