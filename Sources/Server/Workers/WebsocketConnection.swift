@@ -10,8 +10,9 @@ import PostgresNIO
 
 actor WebsocketConnection {
 
-  let persistence: Persistence
+  let databaseNodeId: DatabaseNode.ID
   
+  private let persistence: Persistence
   private let userInfo: UserInfo
   private let room: Room
   private let user: User
@@ -21,10 +22,12 @@ actor WebsocketConnection {
   init(
     actorSystem: ClusterSystem,
     ws: WebsocketApi.WebSocket,
+    databaseNodeId: DatabaseNode.ID,
     persistence: Persistence,
     room: Room,
     userModel: UserModel
   ) async throws {
+    self.databaseNodeId = databaseNodeId
     self.persistence = persistence
     self.room = room
     let userInfo = UserInfo(
@@ -49,14 +52,14 @@ actor WebsocketConnection {
         }
       }
     )
-    self.start(ws: ws)
+    try await self.start(ws: ws)
   }
   
-  func start(ws: WebsocketApi.WebSocket) {
+  func start(ws: WebsocketApi.WebSocket) async throws {
+    await self.sendOldMessages()
+    try await self.join()
     self.listeningTask = Task {
       /// Join to the Room and start sending user messages
-      await self.sendOldMessages()
-      await self.join()
       await self.listenFor(messages: ws.read)
     }
   }
@@ -111,19 +114,15 @@ actor WebsocketConnection {
     self.send(messages: responses)
   }
   
-  private func join() async {
-    do {
-      let messageInfo = try await user.send(message: .join, to: room)
-      self.send(
-        message: ChatResponse(
-          createdAt: messageInfo.createdAt,
-          user: .init(self.userInfo),
-          message: .init(messageInfo.message)
-        )
+  private func join() async throws {
+    let messageInfo = try await user.send(message: .join, to: room)
+    self.send(
+      message: ChatResponse(
+        createdAt: messageInfo.createdAt,
+        user: .init(self.userInfo),
+        message: .init(messageInfo.message)
       )
-    } catch {
-      self.close()
-    }
+    )
   }
   
   private func listenFor(

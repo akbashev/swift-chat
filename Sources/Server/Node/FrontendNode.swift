@@ -17,6 +17,7 @@ distributed actor FrontendNode {
   
   enum Error: Swift.Error {
     case noConnection
+    case noDatabaseAvailable
   }
   
   private lazy var databaseNodes: Set<DatabaseNode> = .init()
@@ -54,46 +55,52 @@ extension FrontendNode {
   private func listenForConnections(events: AsyncStream<WebsocketApi.Event>) {
     self.wsConnectionListeningTask = Task {
       for await event in events {
-        try? await self.handle(event: event)
+        await self.handle(event: event)
       }
     }
   }
   
-  private func handle(event: WebsocketApi.Event) async throws {
+  private func handle(event: WebsocketApi.Event) async {
     switch event {
     case .close(let info):
       self.closeConnectionFor(userId: info.userId)
     case .connect(let info):
-      let persistence = try await self.getDatabaseNode().getPersistence()
-      let room = try await self.findRoom(with: info)
-      let userModel = try await persistence.getUser(id: info.userId)
-      // userId key won't work with mulptiple devices
-      // TODO: Create another key
-      self.wsConnections[info.userId] = try await WebsocketConnection(
-        actorSystem: self.actorSystem,
-        ws: info.ws,
-        persistence: persistence,
-        room: room,
-        userModel: userModel
-      )
+      do {
+        let databaseNode = try await self.getDatabaseNode()
+        let persistence = try await databaseNode.getPersistence()
+        let room = try await self.findRoom(with: info)
+        let userModel = try await persistence.getUser(id: info.userId)
+        // userId key won't work with mulptiple devices
+        // TODO: Create another key
+        self.wsConnections[info.userId] = try await WebsocketConnection(
+          actorSystem: self.actorSystem,
+          ws: info.ws,
+          databaseNodeId: databaseNode.id,
+          persistence: persistence,
+          room: room,
+          userModel: userModel
+        )
+      } catch {
+        try? await info.ws.close()
+      }
     }
   }
   
   private func closeConnectionFor(userId: UUID) {
     let connection = self.wsConnections[userId]
-    self.wsConnections[userId] = .none
     Task { await connection?.close() }
+    self.wsConnections[userId] = .none
   }
   
-  private func checkConnections(with persistence: Persistence) {
-    for (userId, connection) in self.wsConnections where connection.persistence == persistence {
+  private func checkConnections(with databaseNode: DatabaseNode) {
+    for (userId, connection) in self.wsConnections where connection.databaseNodeId == databaseNode.id {
       self.closeConnectionFor(userId: userId)
     }
   }
   
-  private func checkRoomNodes(with eventSource: EventSource<MessageInfo>) async {
+  private func closeRoomNodes(with databaseNodeId: DatabaseNode.ID) async {
     for roomNode in self.roomNodes {
-      try? await roomNode.closeRooms(with: eventSource)
+      try? await roomNode.closeRooms(with: databaseNodeId)
     }
   }
   
@@ -133,10 +140,11 @@ extension FrontendNode: LifecycleWatch {
     if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
       self.httpConnections[id] = .none
       self.databaseNodes.remove(databaseNode)
-      Task {
-        try await self.checkConnections(with: databaseNode.getPersistence())
-        try await self.checkRoomNodes(with: databaseNode.getEventSource())
+      self.checkConnections(with: databaseNode)
+      if self.databaseNodes.isEmpty {
+        Task { try await self.spawnDatabaseNode() }
       }
+      Task { await self.closeRoomNodes(with: id) }
     }
   }
   
@@ -151,7 +159,9 @@ extension FrontendNode: LifecycleWatch {
         self.databaseNodes.insert(databaseNode)
         self.watchTermination(of: databaseNode)
         
-        self.httpConnections[databaseNode.id] = try? await spawnConnection(for: databaseNode)
+        self.httpConnections[databaseNode.id] = try? await HttpConnection(
+          persistence: databaseNode.getPersistence()
+        )
       }
     }
   }
@@ -177,6 +187,7 @@ extension FrontendNode: LifecycleWatch {
     return databaseNode
   }
   
+  @discardableResult
   private func spawnDatabaseNode() async throws -> DatabaseNode {
     if let localDatabaseNode { return localDatabaseNode }
     let databaseNode = try await DatabaseNode(
@@ -221,19 +232,11 @@ extension FrontendNode: RestApi {
       .searchRoom(request)
   }
 
-  private func getConnection() async throws -> HttpConnection {
+  private func getConnection() throws -> HttpConnection {
     guard let worker = self.httpConnections.values.shuffled().first else {
       actorSystem.log.error("No workers to submit job to. Workers: \(self.httpConnections)")
-      return try await spawnConnection(for: self.getDatabaseNode())
+      throw Error.noConnection
     }
-    return worker
-  }
-  
-  private func spawnConnection(for databaseNode: DatabaseNode) async throws -> HttpConnection {
-    let worker = try await HttpConnection(
-      persistence: databaseNode.getPersistence()
-    )
-    self.httpConnections[databaseNode.id] = worker
     return worker
   }
 }

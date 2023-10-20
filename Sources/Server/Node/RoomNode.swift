@@ -12,6 +12,7 @@ distributed actor RoomNode {
   }
   
   private lazy var rooms: [RoomInfo.ID: Room] = [:]
+  private lazy var roomsPerDb: [DatabaseNode.ID: Set<Room>] = [:]
   
   distributed public func spawnRoom(
     with info: RoomInfo,
@@ -22,6 +23,7 @@ distributed actor RoomNode {
       roomInfo: info,
       eventSource: databaseNode.getEventSource()
     )
+    self.roomsPerDb[databaseNode.id, default: .init()].insert(room)
     self.rooms[info.id] = room
     return room
   }
@@ -36,17 +38,13 @@ distributed actor RoomNode {
   }
   
   distributed public func closeRooms(
-    with eventSource: EventSource<MessageInfo>
+    with databaseNodeId: DatabaseNode.ID
   ) async {
-    var idsToClose: [RoomInfo.ID] = []
-    for (key, value) in self.rooms {
-      let roomEventSource = try? await value.getEventSource()
-      if eventSource.id == roomEventSource?.id {
-        idsToClose.append(key)
+    let rooms = roomsPerDb[databaseNodeId] ?? []
+    for room in rooms {
+      if let roomId = (try? await room.getRoomInfo())?.id {
+        self.rooms.removeValue(forKey: roomId)
       }
-    }
-    for id in idsToClose {
-      self.rooms.removeValue(forKey: id)
     }
   }
   
