@@ -21,6 +21,7 @@ distributed actor FrontendNode {
   
   private lazy var databaseNodes: Set<DatabaseNode> = .init()
   private lazy var roomNodes: Set<RoomNode> = .init()
+  private lazy var rooms: Set<Room> = .init()
   private var wsConnections: [UUID: WebsocketConnection] = [:]
   /// [DatabaseNode.ID: HttpConnection] dict here. HttpConnection needs persistence.
   private var httpConnections: [DistributedCluster.ActorID: HttpConnection] = [:]
@@ -28,7 +29,8 @@ distributed actor FrontendNode {
   private var wsConnectionListeningTask: Task<Void, Never>?
   private var databaseNodeListeningTask: Task<Void, Never>?
   private var roomNodeListeningTask: Task<Void, Never>?
-  
+  private var roomsListeningTask: Task<Void, Never>?
+
   /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
   // TODO: How do I clean up them when no more needed?
   private var localDatabaseNode: DatabaseNode?
@@ -44,6 +46,7 @@ distributed actor FrontendNode {
     let events = WebsocketApi.configure(builder: app.ws)
     self.listenForConnections(events: events)
     self.findRoomNodes()
+    self.findRooms()
     self.findDatabaseNodes()
     try app.start()
   }
@@ -65,31 +68,62 @@ extension FrontendNode {
       self.closeConnectionFor(userId: info.userId)
     case .connect(let info):
       let roomNode = await self.getRoomNode()
-      let databaseNode = try await self.getDatabaseNode()
+      let persistence = try await self.getDatabaseNode().getPersistence()
+      let room = try await self.findRoom(with: info)
+      let userModel = try await persistence.getUser(id: info.userId)
       // userId key won't work with mulptiple devices
       // TODO: Create another key
       self.wsConnections[info.userId] = try await WebsocketConnection(
         actorSystem: self.actorSystem,
-        databaseNode: databaseNode,
-        roomNode: roomNode,
-        info: info
+        ws: info.ws,
+        persistence: persistence,
+        room: room,
+        userModel: userModel
       )
     }
   }
   
-  func closeConnectionFor(userId: UUID) {
+  private func closeConnectionFor(userId: UUID) {
     let connection = self.wsConnections[userId]
     self.wsConnections[userId] = .none
     Task { await connection?.close() }
   }
   
-  func checkConnections(with id: DistributedCluster.ActorID) {
-    for (userId, connection) in self.wsConnections {
-      let connectionInfo = connection.info
-      if connectionInfo.roomNodeId == id || connectionInfo.databaseNodeId == id {
-        self.closeConnectionFor(userId: userId)
+  private func checkConnections(with id: DistributedCluster.ActorID) {
+//    for (userId, connection) in self.wsConnections {
+//      let connectionInfo = connection.info
+//      if connectionInfo.databaseNodeId == id {
+//        self.closeConnectionFor(userId: userId)
+//      }
+//    }
+  }
+  
+  private func findRoom(
+    with info: WebsocketApi.Event.Info
+  ) async throws -> Room {
+    let databaseNode = try await self.getDatabaseNode()
+    let persistence = try await databaseNode.getPersistence()
+    
+    let roomModel = try await persistence.getRoom(id: info.roomId)
+    let roomInfo = RoomInfo(
+      id: roomModel.id,
+      name: roomModel.name,
+      description: roomModel.description
+    )
+
+    for room in self.rooms {
+      let roomId = try await room.getRoomInfo().id
+      if roomInfo.id == roomId {
+        return room
       }
     }
+    
+    let roomNode = await self.getRoomNode()
+
+    let userModel = try await persistence.getUser(id: info.userId)
+    return try await roomNode.spawnRoom(
+      with: roomInfo
+    )
   }
 }
 
@@ -102,6 +136,9 @@ extension FrontendNode: LifecycleWatch {
     if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
       self.httpConnections[id] = .none
       self.databaseNodes.remove(databaseNode)
+    }
+    if let actor = self.rooms.first(where: { $0.id == id }) {
+      self.rooms.remove(actor)
     }
     
     self.checkConnections(with: id)
@@ -169,6 +206,20 @@ extension FrontendNode: LifecycleWatch {
     self.localRoomNode = roomNode
     return roomNode
   }
+  
+  private func findRooms() {
+    guard self.roomsListeningTask == nil else {
+      return self.actorSystem.log.info("Already looking for rooms")
+    }
+    
+    self.roomsListeningTask = Task {
+      for await room in await actorSystem.receptionist.listing(of: .rooms) {
+        self.rooms.insert(room)
+        self.watchTermination(of: room)
+      }
+    }
+  }
+  
 }
 
 extension FrontendNode: RestApi {

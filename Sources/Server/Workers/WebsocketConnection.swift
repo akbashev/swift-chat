@@ -9,16 +9,8 @@ import DistributedCluster
 import PostgresNIO
 
 actor WebsocketConnection {
-  
-  struct ConnectionInfo {
-    let roomNodeId: DistributedCluster.ActorID
-    let databaseNodeId: DistributedCluster.ActorID
-    let info: WebsocketApi.Event.Info
-  }
-  
-  let info: ConnectionInfo
+
   private let persistence: Persistence
-  private let roomInfo: RoomInfo
   private let userInfo: UserInfo
   private let room: Room
   private let user: User
@@ -27,33 +19,19 @@ actor WebsocketConnection {
   
   init(
     actorSystem: ClusterSystem,
-    databaseNode: DatabaseNode,
-    roomNode: RoomNode,
-    info: WebsocketApi.Event.Info
+    ws: WebsocketApi.WebSocket,
+    persistence: Persistence,
+    room: Room,
+    userModel: UserModel
   ) async throws {
-    self.info = .init(
-      roomNodeId: roomNode.id,
-      databaseNodeId: databaseNode.id,
-      info: info
-    )
-    self.persistence = try await databaseNode.getPersistence()
-    let roomModel = try await persistence.getRoom(id: info.roomId)
-    let roomInfo = RoomInfo(
-      id: roomModel.id,
-      name: roomModel.name,
-      description: roomModel.description
-    )
-    self.roomInfo = roomInfo
-    self.room = try await roomNode.findRoom(
-      with: roomInfo
-    )
-    let userModel = try await persistence.getUser(id: info.userId)
+    self.persistence = persistence
+    self.room = room
     let userInfo = UserInfo(
       id: userModel.id,
       name: userModel.name
     )
     self.userInfo = userInfo
-    self.ws = info.ws
+    self.ws = ws
     self.user = try await User(
       actorSystem: actorSystem,
       userInfo: userInfo,
@@ -66,11 +44,11 @@ actor WebsocketConnection {
             user: .init(userInfo),
             message: .init(message.message)
           )
-          info.ws.write([response])
+          ws.write([response])
         }
       }
     )
-    self.start(ws: info.ws)
+    self.start(ws: ws)
   }
   
   func start(ws: WebsocketApi.WebSocket) {
@@ -92,6 +70,7 @@ actor WebsocketConnection {
   }
   
   /// Fetch all current room messages
+  /// TODO: Move logic to room?
   private func sendOldMessages() async {
     let messages = (try? await room.getMessages()) ?? []
     let users = await withTaskGroup(of: UserModel?.self) { group in

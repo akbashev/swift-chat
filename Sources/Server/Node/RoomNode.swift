@@ -11,23 +11,19 @@ distributed actor RoomNode {
   }
   
   private lazy var localRooms: Set<Room> = .init()
-  private lazy var rooms: Set<Room> = .init()
   private var listingTask: Task<Void, Never>?
   private var databaseNodeListeningTask: Task<Void, Never>?
   private lazy var databaseNodes: Set<DatabaseNode> = .init()
   
-  distributed func findRoom(
-    with info: RoomInfo
-  ) async throws -> Room {
-    for room in rooms {
-      let roomId = try await room.getRoomInfo().id
-      if info.id == roomId {
-        return room
-      }
-    }
-    return try await self.spawnLocalRoom(
-      with: info
+  distributed public func spawnRoom(with info: RoomInfo) async throws -> Room {
+    let room = try await Room(
+      actorSystem: self.actorSystem,
+      roomInfo: info,
+      eventSource: self.getDatabaseNode()
+        .getEventSource()
     )
+    self.localRooms.insert(room)
+    return room
   }
   
   init(
@@ -35,7 +31,6 @@ distributed actor RoomNode {
   ) async {
     self.actorSystem = actorSystem
     self.findDatabaseNodes()
-    self.findRooms()
     await actorSystem
       .receptionist
       .checkIn(self, with: .roomNodes)
@@ -45,9 +40,6 @@ distributed actor RoomNode {
 extension RoomNode: LifecycleWatch {
   
   func terminated(actor id: ActorID) {
-    if let actor = self.rooms.first(where: { $0.id == id }) {
-      self.rooms.remove(actor)
-    }
     if let dbActor = self.databaseNodes.first(where: { $0.id == id }) {
       self.databaseNodes.remove(dbActor)
     }
@@ -55,20 +47,7 @@ extension RoomNode: LifecycleWatch {
     // TODO: Remove rooms which have same eventSource
     self.localRooms.removeAll()
   }
-  
-  private func findRooms() {
-    guard self.listingTask == nil else {
-      return self.actorSystem.log.info("Already looking for rooms")
-    }
-    
-    self.listingTask = Task {
-      for await room in await actorSystem.receptionist.listing(of: .rooms) {
-        self.rooms.insert(room)
-        self.watchTermination(of: room)
-      }
-    }
-  }
-  
+
   private func findDatabaseNodes() {
     guard self.databaseNodeListeningTask == nil else {
       actorSystem.log.info("Already looking for room db nodes")
@@ -82,20 +61,7 @@ extension RoomNode: LifecycleWatch {
       }
     }
   }
-}
 
-extension RoomNode {
-  private func spawnLocalRoom(with info: RoomInfo) async throws -> Room {
-    let room = try await Room(
-      actorSystem: self.actorSystem,
-      roomInfo: info,
-      eventSource: self.getDatabaseNode()
-        .getEventSource()
-    )
-    self.localRooms.insert(room)
-    return room
-  }
-  
   private func getDatabaseNode() async throws -> DatabaseNode {
     guard let databaseNode = self.databaseNodes.randomElement() else {
       throw Error.noDatabaseAvailable
