@@ -75,13 +75,20 @@ let package = Package(
         .product(name: "PostgresNIO", package: "postgres-nio"),
       ]
     ),
+    .target(
+      name: "VirtualActor",
+      dependencies: [
+        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+      ]
+    ),
     .executableTarget(
       name: "Server",
       dependencies: [
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         "Backend",
         "Frontend",
-        "Persistence"
+        "Persistence",
+        "VirtualActor"
       ]
     ),
   ]

@@ -1,6 +1,6 @@
 import FoundationEssentials
 
-public struct RoomInfo: Sendable, Codable, Equatable {
+public struct RoomInfo: Hashable, Sendable, Codable, Equatable {
   
   public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
     public let rawValue: UUID

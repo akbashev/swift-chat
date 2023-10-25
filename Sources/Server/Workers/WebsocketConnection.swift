@@ -11,10 +11,10 @@ import PostgresNIO
 actor WebsocketConnection {
 
   let databaseNodeId: DatabaseNode.ID
-  
+  let room: Room
+
   private let persistence: Persistence
   private let userInfo: UserInfo
-  private let room: Room
   private let user: User
   private let ws: WebsocketApi.WebSocket
   private var listeningTask: Task<Void, Error>?

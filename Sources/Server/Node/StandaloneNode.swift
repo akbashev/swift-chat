@@ -2,6 +2,8 @@ import DistributedCluster
 import HummingbirdWSCore
 import HummingbirdWebSocket
 import HummingbirdFoundation
+import Backend
+import VirtualActor
 
 enum StandaloneNode: Node {
   static func run(
@@ -38,17 +40,17 @@ enum StandaloneNode: Node {
     app.encoder = JSONEncoder()
     app.decoder = JSONDecoder()
     
-    let frontend = try FrontendNode(
+    // We need references for ARC not to clean them up
+    let frontend = try await FrontendNode(
       actorSystem: actorSystem,
       app: app
     )
-    let roomPool = await RoomNode(
+    let room = await VirtualNode<Room, RoomInfo>(
       actorSystem: roomNode
     )
     let databaseNode = try await DatabaseNode(
       actorSystem: dbNode
     )
-    
     frontend
       .configure(
         router: app.router

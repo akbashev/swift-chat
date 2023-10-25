@@ -9,7 +9,8 @@ import EventSource
 import Distributed
 import DistributedCluster
 import PostgresNIO
- 
+import VirtualActor
+
 /// Doesn't look quite elegant and not sure if it's a correct way of handling things.
 /// Also, how do you load balance HBApplication? 🤔
 /// How does this work in other frameworks? 🤔
@@ -21,14 +22,13 @@ distributed actor FrontendNode {
   }
   
   private lazy var databaseNodes: Set<DatabaseNode> = .init()
-  private lazy var roomNodes: Set<RoomNode> = .init()
   private var wsConnections: [UUID: WebsocketConnection] = [:]
   /// [DatabaseNode.ID: HttpConnection] dict here. HttpConnection needs persistence.
   private var httpConnections: [DistributedCluster.ActorID: HttpConnection] = [:]
   
   private var wsConnectionListeningTask: Task<Void, Never>?
   private var databaseNodeListeningTask: Task<Void, Never>?
-  private var roomNodeListeningTask: Task<Void, Never>?
+  private let roomFactory: VirtualActorFactory<Room, RoomInfo, EventSource<MessageInfo>>
 
   /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
   // TODO: How do I clean up them when no more needed?
@@ -38,13 +38,25 @@ distributed actor FrontendNode {
   init(
     actorSystem: ClusterSystem,
     app: HBApplication
-  ) throws {
+  ) async throws {
     self.actorSystem = actorSystem
+    self.roomFactory = await .init(
+      actorSystem: self.actorSystem,
+      spawn: { actorSystem, info, eventSource in
+        guard let eventSource else {
+          throw Error.noDatabaseAvailable
+        }
+        return try await Room(
+          actorSystem: actorSystem,
+          roomInfo: info,
+          eventSource: eventSource
+        )
+      }
+    )
     app.ws.addUpgrade()
     app.ws.add(middleware: HBLogRequestsMiddleware(.info))
     let events = WebsocketApi.configure(builder: app.ws)
     self.listenForConnections(events: events)
-    self.findRoomNodes()
     self.findDatabaseNodes()
     try app.start()
   }
@@ -95,12 +107,10 @@ extension FrontendNode {
   private func checkConnections(with databaseNode: DatabaseNode) {
     for (userId, connection) in self.wsConnections where connection.databaseNodeId == databaseNode.id {
       self.closeConnectionFor(userId: userId)
-    }
-  }
-  
-  private func closeRoomNodes(with databaseNodeId: DatabaseNode.ID) async {
-    for roomNode in self.roomNodes {
-      try? await roomNode.closeRooms(with: databaseNodeId)
+      Task {
+        let info = try await connection.room.getRoomInfo()
+        try await self.roomFactory.closeActor(for: info)
+      }
     }
   }
   
@@ -116,27 +126,17 @@ extension FrontendNode {
       name: roomModel.name,
       description: roomModel.description
     )
-
-    for roomNode in self.roomNodes {
-      if let room = try? await roomNode.findRoom(with: roomInfo) {
-        return room
-      }
-    }
-    
-    let roomNode = await self.getRoomNode()
-    return try await roomNode.spawnRoom(
-      with: roomInfo,
-      databaseNode: databaseNode
-    )
+    return try await self.roomFactory
+      .get(
+        id: roomInfo,
+        dependency: databaseNode.getEventSource()
+      )
   }
 }
 
 extension FrontendNode: LifecycleWatch {
   
   func terminated(actor id: DistributedCluster.ActorID) {
-    if let roomNode = self.roomNodes.first(where: { $0.id == id }) {
-      self.roomNodes.remove(roomNode)
-    }
     if let databaseNode = self.databaseNodes.first(where: { $0.id == id }) {
       self.httpConnections[id] = .none
       self.databaseNodes.remove(databaseNode)
@@ -144,7 +144,6 @@ extension FrontendNode: LifecycleWatch {
       if self.databaseNodes.isEmpty {
         Task { try await self.spawnDatabaseNode() }
       }
-      Task { await self.closeRoomNodes(with: id) }
     }
   }
   
@@ -165,22 +164,8 @@ extension FrontendNode: LifecycleWatch {
       }
     }
   }
-  
-  private func findRoomNodes() {
-    guard self.roomNodeListeningTask == nil else {
-      actorSystem.log.info("Already looking for room nodes")
-      return
-    }
-    
-    self.roomNodeListeningTask = Task {
-      for await roomNode in await actorSystem.receptionist.listing(of: .roomNodes) {
-        self.roomNodes.insert(roomNode)
-        self.watchTermination(of: roomNode)
-      }
-    }
-  }
-  
-  private func getDatabaseNode() async throws -> DatabaseNode {
+
+  distributed private func getDatabaseNode() async throws -> DatabaseNode {
     guard let databaseNode = self.databaseNodes.randomElement() else {
       return try await spawnDatabaseNode()
     }
@@ -195,23 +180,6 @@ extension FrontendNode: LifecycleWatch {
     )
     self.localDatabaseNode = databaseNode
     return databaseNode
-  }
-
-  
-  private func getRoomNode() async -> RoomNode {
-    guard let roomNode = self.roomNodes.randomElement() else {
-      return await spawnRoomNode()
-    }
-    return roomNode
-  }
-  
-  private func spawnRoomNode() async -> RoomNode {
-    if let localRoomNode { return localRoomNode }
-    let roomNode = await RoomNode(
-      actorSystem: self.actorSystem
-    )
-    self.localRoomNode = roomNode
-    return roomNode
   }
 }
 
@@ -263,7 +231,7 @@ extension FrontendNode: Node {
     app.encoder = JSONEncoder()
     app.decoder = JSONDecoder()
     
-    let frontend = try Self(
+    let frontend = try await Self(
       actorSystem: actorSystem,
       app: app
     )
