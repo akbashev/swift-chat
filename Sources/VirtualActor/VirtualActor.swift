@@ -30,7 +30,7 @@ typealias DefaultDistributedActorSystem = ClusterSystem
 /// - Add consistent hashing
 /// - Automatic actor cleaning
 /// - Improve spawning and dependency handling? 🤔
-distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: LifecycleWatch
+distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: LifecycleWatch, ClusterSingleton
   where VirtualActor: DistributedActor & Codable,
         ID: Hashable & Codable,
         Dependency: Codable {
@@ -93,7 +93,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: Life
   ///  Local node is created while initialising a factory.
   public init(
     actorSystem: ClusterSystem,
-    spawn: @escaping (ActorSystem, ID, Dependency?) async throws -> VirtualActor
+    spawn: @escaping @Sendable (ActorSystem, ID, Dependency?) async throws -> VirtualActor
   ) async {
     self.actorSystem = actorSystem
     self.spawn = spawn

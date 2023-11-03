@@ -27,7 +27,7 @@ distributed public actor Persistence {
   
   public typealias ActorSystem = ClusterSystem
   
-  public enum `Type` {
+  public enum `Type`: Sendable {
     case memory
     case postgres(PostgresConnection.Configuration)
   }
@@ -87,3 +87,5 @@ distributed public actor Persistence {
 extension DistributedReception.Key {
   public static var persistence: DistributedReception.Key<Persistence> { "persistences" }
 }
+
+extension PostgresConnection.Configuration: @unchecked Sendable {}

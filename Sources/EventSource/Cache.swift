@@ -1,4 +1,4 @@
-actor Cache<Command>: Sourceable where Command: Codable {
+actor Cache<Command>: Sourceable where Command: Codable & Sendable {
   
   private struct Data {
     var events: [EventModel<Command>] = []

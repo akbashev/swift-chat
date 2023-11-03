@@ -29,36 +29,51 @@ distributed actor FrontendNode {
   private var wsConnectionListeningTask: Task<Void, Never>?
   private var databaseNodeListeningTask: Task<Void, Never>?
   private let roomFactory: VirtualActorFactory<Room, RoomInfo, EventSource<MessageInfo>>
-
+  private lazy var app = HBApplication(
+    configuration: .init(
+      address: .hostname(
+        self.actorSystem.cluster.node.host,
+        port: 8080
+      ),
+      serverName: "frontend"
+    )
+  )
   /// We need references otherwise PostgresConnection closes. Maybe there is a workaround? 🤔
   // TODO: How do I clean up them when no more needed?
   private var localDatabaseNode: DatabaseNode?
   private var localRoomNode: RoomNode?
   
   init(
-    actorSystem: ClusterSystem,
-    app: HBApplication
+    actorSystem: ClusterSystem
   ) async throws {
     self.actorSystem = actorSystem
-    self.roomFactory = await .init(
-      actorSystem: self.actorSystem,
-      spawn: { actorSystem, info, eventSource in
-        guard let eventSource else {
-          throw Error.noDatabaseAvailable
+    self.roomFactory = try await actorSystem.singleton.host(name: "roomFactory") { actorSystem in
+      await .init(
+        actorSystem: actorSystem,
+        spawn: { actorSystem, info, eventSource in
+          guard let eventSource else {
+            throw Error.noDatabaseAvailable
+          }
+          return try await Room(
+            actorSystem: actorSystem,
+            roomInfo: info,
+            eventSource: eventSource
+          )
         }
-        return try await Room(
-          actorSystem: actorSystem,
-          roomInfo: info,
-          eventSource: eventSource
-        )
-      }
-    )
-    app.ws.addUpgrade()
-    app.ws.add(middleware: HBLogRequestsMiddleware(.info))
+      )
+    }
+
+    self.app.encoder = JSONEncoder()
+    self.app.decoder = JSONDecoder()
+    self.app.ws.addUpgrade()
+    self.app.ws.add(middleware: HBLogRequestsMiddleware(.info))
+    self.configure(
+        router: app.router
+      )
     let events = WebsocketApi.configure(builder: app.ws)
     self.listenForConnections(events: events)
     self.findDatabaseNodes()
-    try app.start()
+    try self.app.start()
   }
 }
 
@@ -217,29 +232,11 @@ extension FrontendNode: Node {
     let actorSystem = await ClusterSystem("frontend") {
       $0.bindHost = host
       $0.bindPort = port
+      $0.plugins.install(plugin: ClusterSingletonPlugin())
     }
-    let app = HBApplication(
-      configuration: .init(
-        address: .hostname(
-          host,
-          port: 8080
-        ),
-        serverName: "frontend"
-      )
-    )
-
-    app.encoder = JSONEncoder()
-    app.decoder = JSONDecoder()
-    
     let frontend = try await Self(
-      actorSystem: actorSystem,
-      app: app
+      actorSystem: actorSystem
     )
-    frontend
-      .configure(
-        router: app.router
-      )
-    
     try await actorSystem.terminated
   }
 }

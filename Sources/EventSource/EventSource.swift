@@ -25,7 +25,7 @@ distributed public actor EventSource<Command> where Command: Sendable & Codable 
   
   public typealias ActorSystem = ClusterSystem
   
-  public enum `Type` {
+  public enum `Type`: Sendable {
     case memory
     case postgres(PostgresConnection.Configuration)
   }
@@ -81,3 +81,5 @@ distributed public actor EventSource<Command> where Command: Sendable & Codable 
 extension EventSource {
   public static var eventSources: DistributedReception.Key<EventSource<Command>> { "eventSources_\(String(describing: Command.self))" }
 }
+
+extension PostgresConnection.Configuration: @unchecked Sendable {}
