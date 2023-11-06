@@ -7,28 +7,28 @@ enum StandaloneNode: Node {
     host: String,
     port: Int
   ) async throws {
-    /// System names are `a`, `b`, `c` in alphabetic order right now due to ClusterEndpoint Comparable current implementation.
-    let actorSystem = await ClusterSystem("a") {
+    let mainNode = await ClusterSystem("main") {
       $0.bindHost = host
       $0.bindPort = port
       $0.plugins.install(plugin: ClusterSingletonPlugin())
     }
-    let roomNode = await ClusterSystem("b") {
+    let roomNode = await ClusterSystem("roomNode") {
       $0.bindHost = host
       $0.bindPort = port + 1
     }
-    let dbNode = await ClusterSystem("c") {
+    let dbNode = await ClusterSystem("dbNode") {
       $0.bindHost = host
       $0.bindPort = port + 2
     }
     
-    roomNode.cluster.join(node: actorSystem.cluster.node)
-    dbNode.cluster.join(node: actorSystem.cluster.node)
-    try await Self.ensureCluster(actorSystem, roomNode, dbNode, within: .seconds(10))
+    roomNode.cluster.join(node: mainNode.cluster.node)
+    dbNode.cluster.join(node: mainNode.cluster.node)
+    
+    try await Self.ensureCluster(mainNode, roomNode, dbNode, within: .seconds(10))
     
     // We need references for ARC not to clean them up
     let frontend = try await FrontendNode(
-      actorSystem: actorSystem
+      actorSystem: mainNode
     )
     let room = await VirtualNode<Room, RoomInfo>(
       actorSystem: roomNode
@@ -36,6 +36,6 @@ enum StandaloneNode: Node {
     let databaseNode = try await DatabaseNode(
       actorSystem: dbNode
     )
-    try await actorSystem.terminated
+    try await mainNode.terminated
   }
 }
