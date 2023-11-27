@@ -32,8 +32,7 @@ var package = Package(
       dependencies: [
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies")
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "Backend",
@@ -41,8 +40,7 @@ var package = Package(
         "EventSource",
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "EventSource",
@@ -50,8 +48,7 @@ var package = Package(
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
         "Postgres",
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "Frontend",
@@ -61,8 +58,7 @@ var package = Package(
         .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation")
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "Persistence",
@@ -70,23 +66,20 @@ var package = Package(
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "FoundationEssentials", package: "swift-foundation"),
         "Postgres",
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "Postgres",
       dependencies: [
         .product(name: "FoundationEssentials", package: "swift-foundation"),
         .product(name: "PostgresNIO", package: "postgres-nio"),
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .target(
       name: "VirtualActor",
       dependencies: [
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
     .executableTarget(
       name: "Server",
@@ -96,8 +89,7 @@ var package = Package(
         "Frontend",
         "Persistence",
         "VirtualActor"
-      ],
-      swiftSettings: [.enableExperimentalFeature("StrictConcurrency")]
+      ]
     ),
   ]
 )

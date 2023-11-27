@@ -81,7 +81,7 @@ public struct EntranceView: View {
       .toolbar {
         ToolbarItem(
           id: "addRoomButton",
-          placement: .navigationBarTrailing,
+          placement: .automatic,
           showsByDefault: true
         ) {
           Button(action: {
@@ -121,7 +121,7 @@ struct RouteView: View {
         .toolbar {
           ToolbarItem(
             id: "navigationBarBackButton",
-            placement: .navigationBarLeading,
+            placement: .automatic,
             showsByDefault: true
           ) {
             Button(action: {
@@ -137,7 +137,5 @@ struct RouteView: View {
         }
       }
     }
-    .navigationBarTitleDisplayMode(.large)
-    .navigationViewStyle(.stack)
   }
 }

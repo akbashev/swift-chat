@@ -162,21 +162,30 @@
       }
     },
     {
-      "identity" : "swift-distributed-actors",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-distributed-actors.git",
-      "state" : {
-        "branch" : "main",
-        "revision" : "b78ed6d16ab61e3c1fece7d8ed89b78f4be6f014"
-      }
-    },
-    {
       "identity" : "swift-distributed-tracing",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-distributed-tracing.git",
       "state" : {
         "revision" : "49b7617717a09f6b781c9a11e1628e3315d8d4fe",
         "version" : "1.0.1"
+      }
+    },
+    {
+      "identity" : "swift-docc-plugin",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-docc-plugin",
+      "state" : {
+        "revision" : "26ac5758409154cc448d7ab82389c520fa8a8247",
+        "version" : "1.3.0"
+      }
+    },
+    {
+      "identity" : "swift-docc-symbolkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-docc-symbolkit",
+      "state" : {
+        "revision" : "b45d1f2ed151d057b54504d653e0da5552844e34",
+        "version" : "1.0.0"
       }
     },
     {
