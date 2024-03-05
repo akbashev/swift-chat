@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct MessageInfo: Sendable, Codable, Equatable {
   public let createdAt: Date

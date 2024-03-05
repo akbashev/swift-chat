@@ -1,5 +1,5 @@
 import HummingbirdFoundation
-import FoundationEssentials
+import Foundation
 import HummingbirdWebSocket
 import HummingbirdWSCore
 

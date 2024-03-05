@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct RoomInfo: Hashable, Sendable, Codable, Equatable {
   

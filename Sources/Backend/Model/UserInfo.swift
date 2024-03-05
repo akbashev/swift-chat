@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct UserInfo: Sendable, Codable, Equatable {
   

@@ -2,7 +2,7 @@ import HummingbirdFoundation
 import HummingbirdWebSocket
 import Distributed
 import DistributedCluster
-import FoundationEssentials
+import Foundation
 
 public protocol RestApi {
   func createUser(_ request: CreateUserRequest) async throws -> UserResponse

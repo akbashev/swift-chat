@@ -1,7 +1,7 @@
 import Distributed
 import DistributedCluster
 import EventSource
-import FoundationEssentials
+import Foundation
 
 public distributed actor Room {
   

@@ -2,7 +2,7 @@ import Distributed
 import DistributedCluster
 import ArgumentParser
 import Frontend
-import FoundationEssentials
+import Foundation
 
 typealias DefaultDistributedActorSystem = ClusterSystem
 
@@ -21,12 +21,13 @@ struct Server: AsyncParsableCommand {
   @Option var port: Int = 2550
   
   func run() async throws {
-    try await switch self.cluster {
-    case .standalone: run(StandaloneNode.self)
-    case .frontend: run(FrontendNode.self)
-    case .room: run(RoomNode.self)
-    case .database: run(DatabaseNode.self)
+    let node: any Node.Type = switch self.cluster {
+    case .standalone: StandaloneNode.self
+    case .frontend: FrontendNode.self
+    case .room: RoomNode.self
+    case .database: DatabaseNode.self
     }
+    try await run(node)
   }
   
   func run(_ node: any Node.Type) async throws {

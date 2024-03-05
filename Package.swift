@@ -16,7 +16,6 @@ var package = Package(
     // Apple
     .package(url: "https://github.com/apple/swift-distributed-actors.git", branch: "main"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-foundation.git", branch: "main"),
     // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "1.0.0"),
     .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "1.0.0"),
@@ -38,16 +37,14 @@ var package = Package(
       name: "Backend",
       dependencies: [
         "EventSource",
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "FoundationEssentials", package: "swift-foundation"),
+        .product(name: "DistributedCluster", package: "swift-distributed-actors")
       ]
     ),
     .target(
       name: "EventSource",
       dependencies: [
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "FoundationEssentials", package: "swift-foundation"),
-        "Postgres",
+        .product(name: "PostgresNIO", package: "postgres-nio"),
       ]
     ),
     .target(
@@ -56,22 +53,13 @@ var package = Package(
         .product(name: "Hummingbird", package: "hummingbird"),
         .product(name: "HummingbirdFoundation", package: "hummingbird"),
         .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "FoundationEssentials", package: "swift-foundation")
+        .product(name: "DistributedCluster", package: "swift-distributed-actors")
       ]
     ),
     .target(
       name: "Persistence",
       dependencies: [
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "FoundationEssentials", package: "swift-foundation"),
-        "Postgres",
-      ]
-    ),
-    .target(
-      name: "Postgres",
-      dependencies: [
-        .product(name: "FoundationEssentials", package: "swift-foundation"),
         .product(name: "PostgresNIO", package: "postgres-nio"),
       ]
     ),

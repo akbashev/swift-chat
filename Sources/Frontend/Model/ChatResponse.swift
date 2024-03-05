@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct ChatResponse: Sendable, Codable {
   

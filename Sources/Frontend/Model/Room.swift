@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 import Hummingbird
 
 public struct CreateRoomRequest: Sendable, Equatable, HBResponseCodable {

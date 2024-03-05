@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct UserModel: Sendable, Codable, Equatable {
   public let id: UUID

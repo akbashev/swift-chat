@@ -2,7 +2,7 @@ import Persistence
 import DistributedCluster
 import Distributed
 import Frontend
-import FoundationEssentials
+import Foundation
 
 /// Not quite _connection_ but will call for now.
 actor HttpConnection: RestApi {

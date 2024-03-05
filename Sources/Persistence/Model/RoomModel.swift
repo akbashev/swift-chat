@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 public struct RoomModel: Sendable, Codable, Equatable {
   public let id: UUID

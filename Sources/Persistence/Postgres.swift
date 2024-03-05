@@ -1,6 +1,5 @@
-import FoundationEssentials
+import Foundation
 import PostgresNIO
-import Postgres
 
 actor Postgres: Persistable {
   

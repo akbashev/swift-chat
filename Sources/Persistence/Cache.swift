@@ -1,4 +1,4 @@
-import FoundationEssentials
+import Foundation
 
 actor Cache: Persistable {
 

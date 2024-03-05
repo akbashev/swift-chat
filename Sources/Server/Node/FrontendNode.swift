@@ -1,7 +1,7 @@
 import HummingbirdWSCore
 import HummingbirdWebSocket
 import HummingbirdFoundation
-import FoundationEssentials
+import Foundation
 import Frontend
 import Backend
 import Persistence
