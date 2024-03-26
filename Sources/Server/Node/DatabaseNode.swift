@@ -12,7 +12,7 @@ distributed actor DatabaseNode {
     case environmentNotSet
   }
     
-  let eventSource: EventSource<MessageInfo>
+  let eventSource: EventSource<Room.State, MessageInfo, Event>
   let persistence: Persistence
   
   init(
@@ -22,10 +22,10 @@ distributed actor DatabaseNode {
     let config = try Self.postgresConfig(
       host: actorSystem.cluster.node.endpoint.host
     )
-    self.eventSource = try await EventSource<MessageInfo>.init(
-      actorSystem: actorSystem,
-      type: .postgres(config)
-    )
+//    self.eventSource = try await EventSource<Room.State, MessageInfo, Event>(
+//      actorSystem: actorSystem,
+//      type: .postgres(config)
+//    )
     self.persistence = try await Persistence(
       actorSystem: actorSystem,
       type: .postgres(config)
@@ -35,13 +35,13 @@ distributed actor DatabaseNode {
       .checkIn(self, with: .databaseNodes)
   }
   
-  distributed func getPersistence() -> Persistence {
-    return self.persistence
-  }
-  
-  distributed func getEventSource() -> EventSource<MessageInfo> {
-    return self.eventSource
-  }
+//  distributed func getPersistence() -> Persistence {
+//    return self.persistence
+//  }
+//  
+//  distributed func getEventSource() -> EventSource<Room.State, MessageInfo, Event> {
+//    return self.eventSource
+//  }
 }
 
 extension DistributedReception.Key {
@@ -86,3 +86,5 @@ extension DatabaseNode {
     )
   }
 }
+
+extension Event: PostgresCodable {}

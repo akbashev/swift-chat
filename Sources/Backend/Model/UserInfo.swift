@@ -1,8 +1,8 @@
 import Foundation
 
-public struct UserInfo: Sendable, Codable, Equatable {
+public struct UserInfo: Sendable, Hashable, Codable, Equatable {
   
-  public struct ID: Sendable, Codable, Equatable, RawRepresentable {
+  public struct ID: Sendable, Hashable, Codable, Equatable, RawRepresentable {
     public let rawValue: UUID
     
     public init(rawValue: UUID) {

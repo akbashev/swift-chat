@@ -1,85 +1,108 @@
-import Distributed
-import DistributedCluster
 import Foundation
 import PostgresNIO
 
 /**
  This is a starting point to create some Event Sourcing with actors, thus very rudimentary.
- For now it's all about saving and getting messages (Commands).
- Next steps:
- 1. Make Event generic
- 2. Add State (with snapshotting on top?)
  
  References:
  1. https://doc.akka.io/docs/akka/current/typed/persistence.html
- 2. https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing
+ 2. https://doc.akka.io/docs/akka/current/persistence.html
+ 3. https://learn.microsoft.com/en-us/dotnet/orleans/grains/grain-persistence/?pivots=orleans-7-0
+ 4. https://learn.microsoft.com/en-us/azure/architecture/patterns/event-sourcing
  */
-protocol Sourceable<Command> {
-  associatedtype Command: Codable
-  func save(command: Command) async throws
-  // TODO: Add predicate (from Foundation?)
-  func get(query: String?) async throws -> [Command]
+// TODO: Will work for now, could be improved further
+public protocol EventStore {
+  associatedtype ID : Hashable
+  
+  func persistEvent<Event: Encodable>(_ event: Event, for id: ID) async throws
+  func eventsFor<Event: Decodable>(_ persistenceId: ID) async throws -> [Event]
 }
 
-distributed public actor EventSource<Command> where Command: Sendable & Codable {
+public protocol EventSourced: Actor {
+  associatedtype Event: Codable & Sendable
+  associatedtype ID : Hashable
+
+  nonisolated var persistenceId: ID { get }
+  func handleEvent(_ event: Event) async
+}
+
+public actor SomeActor: EventSourced {
+  public nonisolated var persistenceId: String { "some_actor" }
   
-  public typealias ActorSystem = ClusterSystem
-  
-  public enum `Type`: Sendable {
-    case memory
-    case postgres(PostgresConnection.Configuration)
+  public enum Event: Codable & Sendable {
+    case dataSaved(String)
   }
   
-  public enum Error: Swift.Error {
-    case typeNotSupported
-  }
-    
-  private let dataStore: any Sourceable<Command>
-  
-  distributed public func save(_ command: Command) async throws {
-    try await self.dataStore.save(command: command)
+  var data: [String] = []
+  let journal: Journal
+
+  public func save(line: String) async {
+    try? await self.journal.emit(Event.dataSaved(line), from: self)
   }
   
-  // TODO: Maybe add some predicate instead of whole query? (from Foundation?)
-  distributed public func get(query: String? = .none) async throws -> [Command] {
-    try await self.dataStore.get(query: query)
+  public func get() -> [String] {
+    self.data
   }
   
-  public init(
-    actorSystem: ClusterSystem,
-    type: `Type`
-  ) async throws where Command: Codable {
-    self.actorSystem = actorSystem
-    switch type {
-    case .memory:
-      self.dataStore = Cache()
-    case .postgres:
-      throw Error.typeNotSupported
+  public func handleEvent(_ event: Event) {
+    switch event {
+    case .dataSaved(let line):
+      data.append(line)
     }
-    await actorSystem
-      .receptionist
-      .checkIn(self, with: Self.eventSources)
   }
-
-  public init(
-    actorSystem: ClusterSystem,
-    type: `Type`
-  ) async throws where Command: Codable & PostgresCodable {
-    self.actorSystem = actorSystem
-    switch type {
-    case .memory:
-      self.dataStore = Cache()
-    case .postgres(let configuration):
-      self.dataStore = try await Postgres<Command>(configuration: configuration)
+  
+  public init<S: EventStore>(store: S) async throws {
+    self.journal = Journal(store: store)
+    if let id = self.persistenceId as? S.ID {
+      let events: [Event] = try await store.eventsFor(id)
+      for event in events {
+        self.handleEvent(event)
+      }
     }
-    await actorSystem
-      .receptionist
-      .checkIn(self, with: Self.eventSources)
   }
 }
 
-extension EventSource {
-  public static var eventSources: DistributedReception.Key<EventSource<Command>> { "eventSources_\(String(describing: Command.self))" }
+actor Journal {
+  let store: any EventStore
+
+  func emit<Event: Codable & Sendable, Actor: EventSourced>(
+    _ event: Event,
+    from eventSourcedActor: Actor
+  ) async throws {
+    try await self.emit(event, from: eventSourcedActor, to: self.store)
+  }
+  
+  private func emit<Event, Actor, Store>(
+    _ event: Event,
+    from actor: Actor,
+    to store: Store
+  ) async throws -> ()
+  where Event: Codable & Sendable,
+        Actor: EventSourced,
+        Store: EventStore {
+    guard let persistenceId = await actor.persistenceId as? Store.ID else { return }
+    try await store.persistEvent(event, for: persistenceId)
+    if let event = event as? Actor.Event {
+      await actor.handleEvent(event)
+    }
+  }
+  
+  init(store: any EventStore) {
+    self.store = store
+  }
 }
 
-extension PostgresConnection.Configuration: @unchecked Sendable {}
+//import Distributed
+//import DistributedCluster
+//
+//typealias DefaultDistributedActorSystem = ClusterSystem
+//
+//extension EventSourced where Self: DistributedActor {
+//  public var journal: ClusterJournalPlugin {
+//    get {
+//       self.actorSystem.journal.host(name: "clusterJournal") { actorSystem in
+//        ClusterJournalPlugin(actorSystem: actorSystem)
+//      }
+//    }
+//  }
+//}

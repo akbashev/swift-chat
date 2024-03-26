@@ -5,16 +5,24 @@ public distributed actor User {
   
   public typealias ActorSystem = ClusterSystem
   
+  public enum Message: Sendable, Codable, Equatable {
+    case join
+    case message(ChatMessage)
+    case leave
+    case disconnect
+  }
+  
+  
   private var state: State
   private let reply: Reply
   
   // API
-  distributed public func send(message: Message, to room: Room) async throws -> MessageInfo {
+  distributed public func send(message: Event, to room: Room) {
     switch message {
       case .join:
         try await self.join(room: room)
       case .message(let string):
-        try await room.message(.message(string), from: self)
+        try await room.send(.message(string), from: self)
       case .leave:
         try await self.leave(room: room)
       case .disconnect:

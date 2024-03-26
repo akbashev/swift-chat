@@ -192,8 +192,6 @@ extension WebsocketConnection {
   }
 }
 
-extension MessageInfo: PostgresCodable {}
-
 fileprivate extension ChatResponse.Message {
   init(_ message: Backend.Message) {
     self = switch message {

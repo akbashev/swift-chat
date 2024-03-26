@@ -3,93 +3,115 @@ import DistributedCluster
 import EventSource
 import Foundation
 
-public distributed actor Room {
-  
+public distributed actor Room: EventSourced {
+
   public typealias ActorSystem = ClusterSystem
+  public typealias Command = Message
   
-  private var state: State
-  private let eventSource: EventSource<MessageInfo>
+  public enum Message: Sendable, Codable, Equatable {
+    case user(User, User.Message)
+  }
   
-  distributed func message(_ message: Message, from user: User) async throws -> MessageInfo {
-    let messageInfo: MessageInfo = try await MessageInfo(
-      createdAt: Date(),
-      roomId: self.state.info.id,
-      userId: user.getUserInfo().id,
-      message: message
-    )
-    try await self.eventSource.save(messageInfo)
-    self.state.messages.append(messageInfo)
-    switch message {
-      case .join:
-        self.state.users.insert(user)
-        // TODO: add logic to this messages
-      case .message:
-        try check(user: user)
-      case .leave, .disconnect:
-        try check(user: user)
-        self.state.users.remove(user)
+  public enum Event: Sendable, Codable, Equatable {
+    public enum Action: Sendable, Codable, Equatable {
+      case joined
+      case messageSent(ChatMessage)
+      case left
+      case disconnected
     }
+    case user(UserInfo, Action)
+  }
+  
+  public var state: State
+  public var users: Set<User> = .init()
+  public var persistenceId: PersistenceId {
+    "room_\(self.state.info.id)"
+  }
+  
+  distributed func message(_ message: User.Message, from user: User) async throws -> Event {
+    let event = try await self.handle(command: .user(user, message))
+    try self.handle(
+      event: event
+    )
     self.notifyOthersAbout(
-      message: messageInfo,
+      message: message,
       from: user
     )
-    return messageInfo
+  }
+
+  distributed public func handle(command: Command) async throws -> Event {
+    switch command {
+    case .user(let user, let command):
+      let userInfo = try await user.getUserInfo()
+      switch command {
+      case .join:
+        users.insert(user)
+        return .user(userInfo, .joined)
+      case .message(let message):
+        return .user(userInfo, .messageSent(message))
+      case .leave:
+        users.remove(user)
+        return .user(userInfo, .left)
+      case .disconnect:
+        users.remove(user)
+        return .user(userInfo, .disconnected)
+      }
+    }
+  }
+  
+  public func handle(event: Event) throws {
+    switch event {
+    case .user(let user, let action):
+      switch action {
+      case .joined:
+        self.state.users.insert(user)
+      case .messageSent(let message):
+        self.state.messages[user, default: []].append(message)
+      case .left,
+          .disconnected:
+        self.state.users.remove(user)
+      }
+    }
+    Task { await self.persist(event) }
   }
   
   distributed public func getRoomInfo() -> RoomInfo {
     self.state.info
   }
   
-  distributed public func getMessages() -> [MessageInfo] {
+  distributed public func getMessages() -> [UserInfo: [ChatMessage]] {
     self.state.messages
-  }
-  
-  distributed public func getEventSource() -> EventSource<MessageInfo> {
-    self.eventSource
   }
   
   public init(
     actorSystem: ClusterSystem,
-    roomInfo: RoomInfo,
-    eventSource: EventSource<MessageInfo>
+    roomInfo: RoomInfo
   ) async throws {
     self.actorSystem = actorSystem
     let id = roomInfo.id.rawValue.uuidString.lowercased()
-    let messages = try await eventSource
-      .get(
-        query: """
-        SELECT command FROM events WHERE command->'roomId'->>'rawValue' ILIKE '\(id)';
-        """
-      )
-    self.state = .init(
-      info: roomInfo,
-      messages: messages
-    )
-    self.eventSource = eventSource
+    self.state = .init(info: roomInfo, users: [], messages: [:])
+//    self.state = try await eventSource
+//      .get(
+//        query: """
+//        SELECT command FROM events WHERE event->'roomId'->>'rawValue' ILIKE '\(id)';
+//        """
+//      )
     await actorSystem
       .receptionist
       .checkIn(self, with: .rooms)
   }
   
-  private func check(user: User) throws {
-    guard self.state.users.contains(user) else { throw Room.Error.userIsMissing }
-  }
-  
   // non-structured
-  private func notifyOthersAbout(message: MessageInfo, from user: User) {
+  private func notifyOthersAbout(message: User.Message, from user: User) {
     Task {
       await withThrowingTaskGroup(of: Void.self) { group in
-        for other in self.state.users where user != other {
+        for other in self.users where user != other {
           group.addTask {
             try await other.notify(message, user: user, from: self)
           }
         }
       }
     }
-  }
-  
-  deinit {
-    print("deinit")
   }
 }
 
@@ -99,10 +121,20 @@ extension Room {
     case userIsMissing
   }
 
-  struct State: Equatable {
+  public struct State: Sendable, Codable, Equatable {
     let info: RoomInfo
-    var users: Set<User> = .init()
-    var messages: [MessageInfo] = .init()
+    var users: Set<UserInfo> = .init()
+    var messages: [UserInfo: [ChatMessage]] = [:]
+    
+    public init(
+      info: RoomInfo,
+      users: Set<UserInfo>,
+      messages: [UserInfo: [ChatMessage]]
+    ) {
+      self.info = info
+      self.users = users
+      self.messages = messages
+    }
   }
 }
 

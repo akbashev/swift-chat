@@ -70,6 +70,13 @@ var package = Package(
       ]
     ),
     .executableTarget(
+      name: "EventSourceTest",
+      dependencies: [
+        .product(name: "ArgumentParser", package: "swift-argument-parser"),
+        "EventSource"
+      ]
+    ),
+    .executableTarget(
       name: "Server",
       dependencies: [
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
