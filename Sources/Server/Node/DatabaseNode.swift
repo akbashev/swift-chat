@@ -58,8 +58,9 @@ extension DatabaseNode: Node {
       $0.bindPort = port
     }
     
-    dbNode.cluster.join(host: "127.0.0.1", port: 2550)
+    dbNode.cluster.join(host: "127.0.0.1", port: 2550) // <- here should be `seed` host and port
     try await Self.ensureCluster(dbNode, within: .seconds(10))
+    // We need references for ARC not to clean them up
     let databaseNode = try await Self(actorSystem: dbNode)
     try await dbNode.terminated
   }

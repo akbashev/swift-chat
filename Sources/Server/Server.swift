@@ -9,6 +9,15 @@ typealias DefaultDistributedActorSystem = ClusterSystem
 @main
 struct Server: AsyncParsableCommand {
   
+  /**
+   For simplicity you can just run `StandaloneNode`, which will run all other nodes (frontend, room, database).
+   
+   If you want to run them seperately you need to form a cluster. To achive that—start with `seed` node first,
+   in swift distributed actors there is not difference which one it should be, for simplicity it's frontend now.
+   Run it with default host. After that you can run room node with other port (e.g. 2551) and db node (e.g. 2552),
+   they will call `cluster.join` call join a cluster on `main` node address.
+   To see configs and what's exactly happening—check `run(host: String, port: Int)` implementation of each node.
+  */
   enum Cluster: String, ExpressibleByArgument {
     case standalone
     case frontend
