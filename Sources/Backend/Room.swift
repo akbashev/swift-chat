@@ -2,13 +2,18 @@ import Distributed
 import DistributedCluster
 import EventSource
 import Foundation
+import VirtualActor
 
-public distributed actor Room: EventSourced {
+public distributed actor Room: EventSourced, VirtualActor {
+  public static var key: String = "rooms"
+  
 
   public typealias ActorSystem = ClusterSystem
   public typealias Command = Message
   
-  distributed public var persistenceId: DistributedCluster.PersistenceID { self.state.info.id.rawValue.uuidString }
+  distributed public var persistenceId: PersistenceID { self.state.info.id.rawValue.uuidString }
+  distributed public var virtualId: VirtualID { self.persistenceId }
+  
   private var state: State
   private var users: Set<User> = .init()
   

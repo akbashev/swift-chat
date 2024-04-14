@@ -3,45 +3,17 @@ import DistributedCluster
 
 typealias DefaultDistributedActorSystem = ClusterSystem
 
-/// Naive implementation of Virtual Actors
-/// 
-/// **Don't overuse it**: this pattern should be used on purpose, e.g. when you have number of dynamic *transparent* actors with some id.
-/// If you have limited, already defined set of actors—just create and reference them in a seperate node.
-///
-/// - **VirtualActor**—any distributed actor to work with,
-/// - **ID**—external id of this actor (**NOT ClusterSystem.ActorID**),
-/// - **Dependency**—some external dependencies (struct or distributed actor) to initialise an actor.
-///
-///
-/// ```swift
-/// // Some hypothetical Node 1
-/// let exampleNode1 = VirtualNode<Example, String>(actorSystem: node1)
-/// // Some hypothetical Node 2
-/// let exampleNode2 = VirtualNode<Example, String>(actorSystem: node2)
-/// // Main node
-/// let factory = VirtualActorFactory<Example, String, SomeDependency>(actorSystem: main) { actorSystem, id, dependencies in
-///    return Example(actorSystem: actorSystem, dependencies)
-/// }
-/// // This actor is created when referenced and location transparent.
-/// let actor = try await factory.get(id: "first_example", dependency: SomeDependency())
-/// ```
-/// 
-/// - TODO:
-/// - Add consistent hashing
-/// - Automatic actor cleaning
-/// - Improve spawning and dependency handling? 🤔
-distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, ClusterSingleton
-  where VirtualActor: DistributedActor & Codable,
-        ID: Hashable & Codable {
+distributed public actor VirtualActorFactory<Actor>: LifecycleWatch, ClusterSingleton
+  where Actor: VirtualActor {
     
   public enum Error: Swift.Error {
     case noNodesAvailable
   }
   
-  private lazy var virtualNodes: Set<VirtualNode<VirtualActor, ID>> = .init()
+  private lazy var virtualNodes: Set<VirtualNode<Actor>> = .init()
   private var listeningTask: Task<Void, Never>?
   // How actors are spawned should be defined by VirtualActorFactory owner atm
-  private let spawn: (ActorSystem, ID) async throws -> VirtualActor
+  private let spawn: () async throws -> Actor
 
   public func terminated(actor id: ActorID) async {
     guard let virtualNode = self.virtualNodes.first(where: { $0.id == id }) else { return }
@@ -55,7 +27,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, 
     }
     
     self.listeningTask = Task {
-      for await virtualNode in await actorSystem.receptionist.listing(of: VirtualNode<VirtualActor, ID>.nodes) {
+      for await virtualNode in await actorSystem.receptionist.listing(of: VirtualNode<Actor>.key) {
         self.virtualNodes.insert(virtualNode)
         self.watchTermination(of: virtualNode)
       }
@@ -65,7 +37,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, 
   /// - Parameters:
   /// - id—external (not system) id of an actor.
   /// - dependency—only needed when spawning an actor.
-  distributed public func get(id: ID) async throws -> VirtualActor {
+  distributed public func get(id: VirtualID) async throws -> Actor {
     for virtualNode in virtualNodes {
       if let actor = try? await virtualNode.find(id: id) {
         return actor
@@ -75,13 +47,13 @@ distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, 
       // There should be always a node (at least local node), if not—something sus
       throw Error.noNodesAvailable
     }
-    let actor = try await self.spawn(node.actorSystem, id)
+    let actor = try await self.spawn()
     try await node.register(actor: actor, with: id)
     return actor
   }
   
   /// Actors should be cleaned automatically, but for now unfortunately manual cleaning.
-  distributed public func closeActor(for id: ID) async {
+  distributed public func closeActor(for id: VirtualID) async {
     for node in virtualNodes {
       try? await node.close(with: id)
     }
@@ -92,7 +64,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, 
   ///  Local node is created while initialising a factory.
   public init(
     actorSystem: ClusterSystem,
-    spawn: @escaping @Sendable (ActorSystem, ID) async throws -> VirtualActor
+    spawn: @escaping @Sendable () async throws -> Actor
   ) async {
     self.actorSystem = actorSystem
     self.spawn = spawn
@@ -100,31 +72,29 @@ distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, 
   }
 }
 
-distributed public actor VirtualNode<VirtualActor, ID>
-  where VirtualActor: DistributedActor & Codable,
-        ID: Hashable & Codable {
+distributed public actor VirtualNode<Actor> where Actor: VirtualActor {
   
   public enum Error: Swift.Error {
     case noActorAvailable
   }
   
-  private lazy var subactors: [ID: VirtualActor] = [:]
+  private lazy var virtualActors: [VirtualID: Actor] = [:]
   
-  distributed fileprivate func register(actor: VirtualActor, with id: ID) {
-    self.subactors[id] = actor
+  distributed fileprivate func register(actor: Actor, with id: VirtualID) {
+    self.virtualActors[id] = actor
   }
   
-  distributed public func find(id: ID) async throws -> VirtualActor {
-    guard let room = self.subactors[id] else {
+  distributed public func find(id: VirtualID) async throws -> Actor {
+    guard let room = self.virtualActors[id] else {
       throw Error.noActorAvailable
     }
     return room
   }
   
   distributed public func close(
-    with id: ID
+    with id: VirtualID
   ) async {
-    self.subactors.removeValue(forKey: id)
+    self.virtualActors.removeValue(forKey: id)
   }
   
   public init(
@@ -133,10 +103,89 @@ distributed public actor VirtualNode<VirtualActor, ID>
     self.actorSystem = actorSystem
     await actorSystem
       .receptionist
-      .checkIn(self, with: Self.nodes)
+      .checkIn(self, with: Self.key)
   }
 }
 
 extension VirtualNode {
-  static var nodes: DistributedReception.Key<VirtualNode<VirtualActor, ID>> { "virtual_nodes_\(Self.self)" }
+  static var key: DistributedReception.Key<VirtualNode<Actor>> { "virtual_group_\(Self.self)" }
+}
+
+public typealias VirtualID = String
+
+public protocol VirtualActor: DistributedActor, Codable where ActorSystem == ClusterSystem {
+  static var key: String { get }
+  
+  distributed var virtualId: VirtualID { get }
+}
+
+extension VirtualActor {
+  public static func virtual(
+    actorSystem: ClusterSystem,
+    id: VirtualID,
+    factory: @escaping (ClusterSystem) async throws -> Self
+  ) async throws -> Self {
+    try await actorSystem
+      .virtualActors
+      .get(
+        id: id,
+        factory: factory
+      )
+  }
+}
+
+public actor ClusterVirtualActorsPlugin {
+    
+  public enum Error: Swift.Error {
+    case factoryError
+  }
+  
+  private var actorSystem: ClusterSystem!
+  public func get<A: VirtualActor>(
+    id: VirtualID,
+    factory: @escaping (ClusterSystem) async throws -> A
+  ) async throws -> A {
+    try await actorSystem.singleton.host(name: A.key) { actorSystem in
+      await VirtualActorFactory<A>(
+        actorSystem: actorSystem,
+        spawn: {
+          try await factory(actorSystem)
+        }
+      )
+    }
+    .get(id: id)
+  }
+  
+  public init() {}
+}
+
+extension ClusterVirtualActorsPlugin: _Plugin {
+  static let pluginKey: Key = "$clusterVirtualActors"
+  
+  public nonisolated var key: Key {
+    Self.pluginKey
+  }
+  
+  public func start(_ system: ClusterSystem) async throws {
+    self.actorSystem = system
+  }
+  
+  public func stop(_ system: ClusterSystem) async {
+    self.actorSystem = nil
+  }
+}
+
+extension ClusterSystem {
+  
+  public var virtualActors: ClusterVirtualActorsPlugin {
+    let key = ClusterVirtualActorsPlugin.pluginKey
+    guard let journalPlugin = self.settings.plugins[key] else {
+      fatalError("No plugin found for key: [\(key)], installed plugins: \(self.settings.plugins)")
+    }
+    return journalPlugin
+  }
+  
+  public func add<V: VirtualActor>(_ type: V.Type) async throws -> VirtualNode<V> {
+    await VirtualNode<V>(actorSystem: self)
+  }
 }

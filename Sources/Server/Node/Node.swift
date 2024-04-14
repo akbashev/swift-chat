@@ -6,6 +6,7 @@ protocol Node {
 import DistributedCluster
 
 extension Node {
+  
   /// Waiting for all the clusters to be up
   static func ensureCluster(_ systems: ClusterSystem..., within: Duration) async throws {
     let nodes = Set(systems.map(\.settings.bindNode))

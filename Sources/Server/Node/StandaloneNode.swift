@@ -21,7 +21,9 @@ enum StandaloneNode: Node {
     let roomNode = await ClusterSystem("roomNode") {
       $0.bindHost = host
       $0.bindPort = port + 1
+      $0.installPlugins()
     }
+    
     roomNode.cluster.join(node: mainNode.cluster.node)
     
     try await Self.ensureCluster(mainNode, roomNode, within: .seconds(10))
@@ -29,9 +31,6 @@ enum StandaloneNode: Node {
     // We need references for ARC not to clean them up
     let frontend = try await FrontendNode(
       actorSystem: mainNode
-    )
-    let room = await VirtualNode<Room, RoomInfo>(
-      actorSystem: roomNode
     )
     try await mainNode.terminated
   }

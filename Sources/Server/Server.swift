@@ -3,6 +3,8 @@ import DistributedCluster
 import ArgumentParser
 import Frontend
 import Foundation
+import EventSource
+import VirtualActor
 
 typealias DefaultDistributedActorSystem = ClusterSystem
 
@@ -14,6 +16,14 @@ struct Server: AsyncParsableCommand {
     case frontend
     case room
   }
+  
+  static let plugins: [any _Plugin] = [
+    ClusterSingletonPlugin(),
+    ClusterJournalPlugin {
+      MemoryEventStore(actorSystem: $0)
+    },
+    ClusterVirtualActorsPlugin()
+  ]
   
   @Argument var cluster: Cluster
   @Option var host: String = "127.0.0.1"
@@ -30,5 +40,11 @@ struct Server: AsyncParsableCommand {
   
   func run(_ node: any Node.Type) async throws {
     try await node.run(host: self.host, port: self.port)
+  }
+}
+
+extension ClusterSystemSettings {
+  mutating func installPlugins() {
+    for plugin in Server.plugins { self += plugin }
   }
 }

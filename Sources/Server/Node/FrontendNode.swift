@@ -26,7 +26,6 @@ distributed actor FrontendNode {
   private var wsConnectionListeningTask: Task<Void, Never>?
   let persistence: Persistence
   
-  private let roomFactory: VirtualActorFactory<Room, RoomInfo>
   private lazy var app = HBApplication(
     configuration: .init(
       address: .hostname(
@@ -47,17 +46,6 @@ distributed actor FrontendNode {
     self.persistence = try await Persistence(
       type: .postgres(config)
     )
-    self.roomFactory = try await actorSystem.singleton.host(name: "roomFactory") { actorSystem in
-      await .init(
-        actorSystem: actorSystem,
-        spawn: { actorSystem, info in
-          await Room(
-            actorSystem: actorSystem,
-            roomInfo: info
-          )
-        }
-      )
-    }
     
     self.app.encoder = JSONEncoder()
     self.app.decoder = JSONDecoder()
@@ -115,15 +103,19 @@ extension FrontendNode {
     with info: WebsocketApi.Event.Info
   ) async throws -> Room {
     let roomModel = try await self.persistence.getRoom(id: info.roomId)
-    let roomInfo = RoomInfo(
-      id: roomModel.id,
-      name: roomModel.name,
-      description: roomModel.description
-    )
-    return try await self.roomFactory
-      .get(
-        id: roomInfo
+    return try await Room.virtual(
+      actorSystem: self.actorSystem,
+      id: info.roomId.uuidString
+    ) { actorSystem in
+      await Room(
+        actorSystem: actorSystem,
+        roomInfo: .init(
+          id: info.roomId,
+          name: roomModel.name,
+          description: roomModel.description
+        )
       )
+    }
   }
 }
 
@@ -135,12 +127,7 @@ extension FrontendNode: Node {
     let actorSystem = await ClusterSystem("frontend") {
       $0.bindHost = host
       $0.bindPort = port
-      $0.plugins.install(plugin: ClusterSingletonPlugin())
-      $0.plugins.install(
-        plugin: ClusterJournalPlugin {
-          MemoryEventStore(actorSystem: $0)
-        }
-      )
+      $0.installPlugins()
     }
     let frontend = try await FrontendNode(
       actorSystem: actorSystem
