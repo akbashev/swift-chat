@@ -153,7 +153,7 @@ public struct Room: Reducer {
         guard !state.message.isEmpty else { return .none }
         let message = state.message
         state.message = ""
-        state.messagesToSend.append(.message(message))
+        state.messagesToSend.append(.message(message, at: Date()))
         let messagesToSend = state.messagesToSend
         return .run { send in
           await send(.send(messagesToSend))

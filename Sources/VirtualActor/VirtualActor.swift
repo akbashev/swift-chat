@@ -30,11 +30,10 @@ typealias DefaultDistributedActorSystem = ClusterSystem
 /// - Add consistent hashing
 /// - Automatic actor cleaning
 /// - Improve spawning and dependency handling? 🤔
-distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: LifecycleWatch, ClusterSingleton
+distributed public actor VirtualActorFactory<VirtualActor, ID>: LifecycleWatch, ClusterSingleton
   where VirtualActor: DistributedActor & Codable,
-        ID: Hashable & Codable,
-        Dependency: Codable {
-  
+        ID: Hashable & Codable {
+    
   public enum Error: Swift.Error {
     case noNodesAvailable
   }
@@ -42,7 +41,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: Life
   private lazy var virtualNodes: Set<VirtualNode<VirtualActor, ID>> = .init()
   private var listeningTask: Task<Void, Never>?
   // How actors are spawned should be defined by VirtualActorFactory owner atm
-  private let spawn: (ActorSystem, ID, Dependency?) async throws -> VirtualActor
+  private let spawn: (ActorSystem, ID) async throws -> VirtualActor
 
   public func terminated(actor id: ActorID) async {
     guard let virtualNode = self.virtualNodes.first(where: { $0.id == id }) else { return }
@@ -66,7 +65,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: Life
   /// - Parameters:
   /// - id—external (not system) id of an actor.
   /// - dependency—only needed when spawning an actor.
-  distributed public func get(id: ID, dependency: Dependency? = .none) async throws -> VirtualActor {
+  distributed public func get(id: ID) async throws -> VirtualActor {
     for virtualNode in virtualNodes {
       if let actor = try? await virtualNode.find(id: id) {
         return actor
@@ -76,7 +75,7 @@ distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: Life
       // There should be always a node (at least local node), if not—something sus
       throw Error.noNodesAvailable
     }
-    let actor = try await self.spawn(node.actorSystem, id, dependency)
+    let actor = try await self.spawn(node.actorSystem, id)
     try await node.register(actor: actor, with: id)
     return actor
   }
@@ -87,19 +86,16 @@ distributed public actor VirtualActorFactory<VirtualActor, ID, Dependency>: Life
       try? await node.close(with: id)
     }
   }
-  
+
   /// - Parameters:
   ///  - spawn—definining how an actor should be created.
   ///  Local node is created while initialising a factory.
   public init(
     actorSystem: ClusterSystem,
-    spawn: @escaping @Sendable (ActorSystem, ID, Dependency?) async throws -> VirtualActor
+    spawn: @escaping @Sendable (ActorSystem, ID) async throws -> VirtualActor
   ) async {
     self.actorSystem = actorSystem
     self.spawn = spawn
-    /// At least local node should be available for transparency
-    let localNode = await VirtualNode<VirtualActor, ID>(actorSystem: actorSystem)
-    self.virtualNodes.insert(localNode)
     self.findVirtualNodes()
   }
 }

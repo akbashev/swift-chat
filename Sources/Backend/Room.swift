@@ -8,20 +8,6 @@ public distributed actor Room: EventSourced {
   public typealias ActorSystem = ClusterSystem
   public typealias Command = Message
   
-  public enum Message: Sendable, Codable, Equatable {
-    case fromUser(UserInfo, content: User.Message)
-  }
-  
-  public enum Event: Sendable, Codable, Equatable {
-    public enum Action: Sendable, Codable, Equatable {
-      case joined
-      case messageSent(String, at: Date)
-      case left
-      case disconnected
-    }
-    case user(UserInfo, Action)
-  }
-  
   distributed public var persistenceId: DistributedCluster.PersistenceID { self.state.info.id.rawValue.uuidString }
   private var state: State
   private var users: Set<User> = .init()
@@ -31,8 +17,8 @@ public distributed actor Room: EventSourced {
     let event: Event = switch message {
     case .join:
         .user(userInfo, .joined)
-    case .message(let chatMessage):
-        .user(userInfo, .messageSent(chatMessage, at: Date()))
+    case .message(let chatMessage, let date):
+        .user(userInfo, .messageSent(chatMessage, at: date))
     case .leave:
         .user(userInfo, .left)
     case .disconnect:
@@ -49,7 +35,6 @@ public distributed actor Room: EventSourced {
     }
     try await self.emit(event: event)
     self.handleEvent(event)
-    
     self.notifyOthersAbout(
       message: message,
       from: user
@@ -65,10 +50,9 @@ public distributed actor Room: EventSourced {
       case .messageSent(let message, let date):
         self.state.messages[user, default: []].append(
           .init(
-            createdAt: date,
             roomId: self.state.info.id,
             userId: user.id,
-            message: .message(message)
+            message: .message(message, at: date)
           )
         )
       case .left,
@@ -89,7 +73,7 @@ public distributed actor Room: EventSourced {
   public init(
     actorSystem: ClusterSystem,
     roomInfo: RoomInfo
-  ) async throws {
+  ) async {
     self.actorSystem = actorSystem
     self.state = .init(info: roomInfo, users: [], messages: [:])
     await actorSystem
@@ -100,10 +84,10 @@ public distributed actor Room: EventSourced {
   // non-structured
   private func notifyOthersAbout(message: User.Message, from user: User) {
     Task {
-      await withThrowingTaskGroup(of: Void.self) { group in
+      await withTaskGroup(of: Void.self) { group in
         for other in self.users where user != other {
           group.addTask {
-            try await other.notify(message, user: user, from: self)
+            try? await other.notify(message, user: user, from: self)
           }
         }
       }
@@ -112,6 +96,20 @@ public distributed actor Room: EventSourced {
 }
 
 extension Room {
+  
+  public enum Message: Sendable, Codable, Equatable {
+    case fromUser(UserInfo, content: User.Message)
+  }
+  
+  public enum Event: Sendable, Codable, Equatable {
+    public enum Action: Sendable, Codable, Equatable {
+      case joined
+      case messageSent(String, at: Date)
+      case left
+      case disconnected
+    }
+    case user(UserInfo, Action)
+  }
   
   public enum Error: Swift.Error {
     case userIsMissing

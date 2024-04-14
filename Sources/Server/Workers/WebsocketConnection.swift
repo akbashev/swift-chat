@@ -33,15 +33,14 @@ actor WebsocketConnection {
     )
     self.userInfo = userInfo
     self.ws = ws
-    self.user = try await User(
+    self.user = User(
       actorSystem: actorSystem,
       userInfo: userInfo,
-      reply: .init { output in
+      reply: { output in
         /// Start listening for messages from other users
         switch output {
-        case let .message(message):
+        case let .message(message, userInfo):
           let response = ChatResponse(
-            createdAt: message.createdAt,
             user: .init(userInfo),
             message: .init(message.message)
           )
@@ -64,7 +63,8 @@ actor WebsocketConnection {
   func close() {
     self.listeningTask?.cancel()
     self.listeningTask = .none
-    Task {
+    Task { [weak self] in
+      guard let self else { return }
       _ = try? await self.user.send(message: .disconnect, to: self.room)
       try? await self.ws.close()
     }
@@ -74,25 +74,12 @@ actor WebsocketConnection {
   // TODO: Move logic to room?
   private func sendOldMessages() async {
     let messages = (try? await room.getMessages()) ?? [:]
-    let users = await withTaskGroup(of: UserModel?.self) { group in
-      for message in messages.keys {
-        group.addTask {
-          try? await self.persistence.getUser(id: message.id.rawValue)
-        }
-      }
-      return await group
-        .reduce(into: [UserModel]()) { partialResult, response in
-          guard let response else { return }
-          partialResult.append(response)
-        }
-    }
     let responses = messages
       .reduce(into: [ChatResponse](), { partialResult, value in
         let (key, messages) = value
         for message in messages {
           partialResult.append(
             ChatResponse(
-              createdAt: message.createdAt,
               user: .init(key),
               message: .init(message.message)
             )
@@ -106,14 +93,12 @@ actor WebsocketConnection {
   private func join() async throws {
     try await user.send(message: .join, to: room)
     let message = try await MessageInfo(
-      createdAt: .init(),
       roomId: room.getRoomInfo().id,
       userId: self.userInfo.id,
       message: .join
     )
     self.send(
       message: ChatResponse(
-        createdAt: message.createdAt,
         user: .init(self.userInfo),
         message: .init(message.message)
       )
@@ -143,16 +128,16 @@ extension WebsocketConnection {
   ) async throws {
     switch message {
     case .text(let string):
+      let createdAt = Date()
       try await user.send(
-        message: .message(string),
+        message: .message(string, at: createdAt),
         to: self.room
       )
       try await self.send(
         response: MessageInfo(
-          createdAt: Date(),
           roomId: self.room.getRoomInfo().id,
           userId: self.userInfo.id,
-          message: .message(string)
+          message: .message(string, at: createdAt)
         )
       )
       break
@@ -164,7 +149,6 @@ extension WebsocketConnection {
         )
         try await self.send(
           response: MessageInfo(
-            createdAt: Date(),
             roomId: self.room.getRoomInfo().id,
             userId: self.userInfo.id,
             message: .init(message)
@@ -182,7 +166,6 @@ extension WebsocketConnection {
     self.send(
       messages: responses.map {
         ChatResponse(
-          createdAt: $0.createdAt,
           user: .init(self.userInfo),
           message: .init($0.message)
         )
@@ -203,7 +186,7 @@ fileprivate extension ChatResponse.Message {
   init(_ message: User.Message) {
     self = switch message {
     case .join: .join
-    case .message(let string): .message(string)
+    case .message(let string, let date): .message(string, at: date)
     case .leave: .leave
     case .disconnect: .disconnect
     }
@@ -214,7 +197,7 @@ fileprivate extension User.Message {
   init(_ message: ChatResponse.Message) {
     self = switch message {
     case .join: .join
-    case .message(let string): .message(string)
+    case .message(let string, let date): .message(string, at: date)
     case .leave: .leave
     case .disconnect: .disconnect
     }

@@ -1,17 +1,12 @@
 import Distributed
 import DistributedCluster
+import Foundation
 
 public distributed actor User {
   
   public typealias ActorSystem = ClusterSystem
-  
-  public enum Message: Sendable, Codable, Equatable {
-    case join
-    case message(String)
-    case leave
-    case disconnect
-  }
-  
+  public typealias Reply = @Sendable (Output) async throws -> ()
+
   private var state: State
   private let reply: Reply
   
@@ -20,8 +15,8 @@ public distributed actor User {
     switch message {
       case .join:
         try await self.join(room: room)
-      case .message(let string):
-        try await room.send(.message(string), from: self)
+      case .message(let string, let date):
+        try await room.send(.message(string, at: date), from: self)
       case .leave:
         try await self.leave(room: room)
       case .disconnect:
@@ -30,37 +25,32 @@ public distributed actor User {
   }
     
   // Room
-  distributed func notify(_ message: User.Message, user: User, from room: Room) {
-    Task {
-      let userInfo = try await user.getUserInfo()
-      try await self.reply.send(
-        Output.message(
-          .init(
-            createdAt: .init(),
-            roomId: room.getRoomInfo().id,
-            userId: userInfo.id,
-            message: message
-          )
-        )
+  distributed func notify(_ message: User.Message, user: User, from room: Room) async throws {
+    let userInfo = try await user.getUserInfo()
+    try await self.reply(
+      Output.message(
+        .init(
+          roomId: room.getRoomInfo().id,
+          userId: userInfo.id,
+          message: message
+        ),
+        from: userInfo
       )
-    }
+    )
   }
   
-  distributed public func getUserInfo() -> UserInfo {
-    self.state.info
-  }
+  distributed public func getUserInfo() -> UserInfo { self.state.info }
   
   public init(
     actorSystem: ClusterSystem,
     userInfo: UserInfo,
-    reply: Reply
-  ) async throws {
+    reply: @escaping Reply
+  ) {
     self.actorSystem = actorSystem
     self.state = .init(
       info: userInfo
     )
     self.reply = reply
-    await self.actorSystem.receptionist.checkIn(self, with: .users)
   }
   
   private func join(room: Room) async throws {
@@ -82,12 +72,11 @@ public distributed actor User {
 
 extension User {
   
-  public struct Reply {
-    public let send: @Sendable (Output) async throws -> ()
-    
-    public init(send: @escaping @Sendable (Output) async throws -> Void) {
-      self.send = send
-    }
+  public enum Message: Sendable, Codable, Equatable {
+    case join
+    case message(String, at: Date)
+    case leave
+    case disconnect
   }
   
   public enum Error: Swift.Error {
@@ -95,15 +84,11 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(MessageInfo)
+    case message(MessageInfo, from: UserInfo)
   }
 
   private struct State: Equatable {
     var rooms: Set<Room> = .init()
     let info: UserInfo
   }
-}
-
-extension DistributedReception.Key {
-  public static var users: DistributedReception.Key<User> { "users" }
 }

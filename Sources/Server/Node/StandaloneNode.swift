@@ -7,14 +7,16 @@ enum StandaloneNode: Node {
   static func run(
     host: String,
     port: Int
-  ) async throws {
-    let eventStore = MemoryEventStore()
-    
+  ) async throws {    
     let mainNode = await ClusterSystem("main") {
       $0.bindHost = host
       $0.bindPort = port
       $0.plugins.install(plugin: ClusterSingletonPlugin())
-      $0.plugins.install(plugin: ClusterJournalPlugin(store: eventStore))
+      $0.plugins.install(
+        plugin: ClusterJournalPlugin {
+          MemoryEventStore(actorSystem: $0)
+        }
+      )
     }
     let roomNode = await ClusterSystem("roomNode") {
       $0.bindHost = host
@@ -25,7 +27,7 @@ enum StandaloneNode: Node {
     try await Self.ensureCluster(mainNode, roomNode, within: .seconds(10))
     
     // We need references for ARC not to clean them up
-    let _ = try await FrontendNode(
+    let frontend = try await FrontendNode(
       actorSystem: mainNode
     )
     let room = await VirtualNode<Room, RoomInfo>(

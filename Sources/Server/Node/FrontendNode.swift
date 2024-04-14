@@ -26,8 +26,7 @@ distributed actor FrontendNode {
   private var wsConnectionListeningTask: Task<Void, Never>?
   let persistence: Persistence
   
-  struct Unit: Codable {}
-  private let roomFactory: VirtualActorFactory<Room, RoomInfo, Unit>
+  private let roomFactory: VirtualActorFactory<Room, RoomInfo>
   private lazy var app = HBApplication(
     configuration: .init(
       address: .hostname(
@@ -51,8 +50,8 @@ distributed actor FrontendNode {
     self.roomFactory = try await actorSystem.singleton.host(name: "roomFactory") { actorSystem in
       await .init(
         actorSystem: actorSystem,
-        spawn: { actorSystem, info, _ in
-          return try await Room(
+        spawn: { actorSystem, info in
+          await Room(
             actorSystem: actorSystem,
             roomInfo: info
           )
@@ -133,15 +132,17 @@ extension FrontendNode: Node {
     host: String,
     port: Int
   ) async throws {
-    let eventStore = MemoryEventStore()
-    
     let actorSystem = await ClusterSystem("frontend") {
       $0.bindHost = host
       $0.bindPort = port
       $0.plugins.install(plugin: ClusterSingletonPlugin())
-      $0.plugins.install(plugin: ClusterJournalPlugin(store: eventStore))
+      $0.plugins.install(
+        plugin: ClusterJournalPlugin {
+          MemoryEventStore(actorSystem: $0)
+        }
+      )
     }
-    let frontend = try await Self(
+    let frontend = try await FrontendNode(
       actorSystem: actorSystem
     )
     try await actorSystem.terminated
