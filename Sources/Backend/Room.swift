@@ -5,11 +5,10 @@ import Foundation
 import VirtualActor
 
 public distributed actor Room: EventSourced, VirtualActor {
-  public static var key: String = "rooms"
-  
-
   public typealias ActorSystem = ClusterSystem
   public typealias Command = Message
+  
+  public static var virtualFactoryKey: String = "rooms"
   
   distributed public var persistenceId: PersistenceID { self.state.info.id.rawValue.uuidString }
   distributed public var virtualId: VirtualID { self.persistenceId }

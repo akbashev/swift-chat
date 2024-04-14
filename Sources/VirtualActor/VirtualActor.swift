@@ -114,7 +114,7 @@ extension VirtualNode {
 public typealias VirtualID = String
 
 public protocol VirtualActor: DistributedActor, Codable where ActorSystem == ClusterSystem {
-  static var key: String { get }
+  static var virtualFactoryKey: String { get }
   
   distributed var virtualId: VirtualID { get }
 }
@@ -145,7 +145,7 @@ public actor ClusterVirtualActorsPlugin {
     id: VirtualID,
     factory: @escaping (ClusterSystem) async throws -> A
   ) async throws -> A {
-    try await actorSystem.singleton.host(name: A.key) { actorSystem in
+    try await actorSystem.singleton.host(name: A.virtualFactoryKey) { actorSystem in
       await VirtualActorFactory<A>(
         actorSystem: actorSystem,
         spawn: {
