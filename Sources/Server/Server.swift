@@ -13,7 +13,6 @@ struct Server: AsyncParsableCommand {
     case standalone
     case frontend
     case room
-    case database
   }
   
   @Argument var cluster: Cluster
@@ -25,7 +24,6 @@ struct Server: AsyncParsableCommand {
     case .standalone: StandaloneNode.self
     case .frontend: FrontendNode.self
     case .room: RoomNode.self
-    case .database: DatabaseNode.self
     }
     try await run(node)
   }

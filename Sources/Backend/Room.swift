@@ -9,57 +9,45 @@ public distributed actor Room: EventSourced {
   public typealias Command = Message
   
   public enum Message: Sendable, Codable, Equatable {
-    case user(User, User.Message)
+    case fromUser(UserInfo, content: User.Message)
   }
   
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
       case joined
-      case messageSent(ChatMessage)
+      case messageSent(String)
       case left
       case disconnected
     }
     case user(UserInfo, Action)
   }
   
-  public var state: State
-  public var users: Set<User> = .init()
-  public var persistenceId: PersistenceId {
-    "room_\(self.state.info.id)"
-  }
+  distributed public var persistenceId: DistributedCluster.PersistenceID { self.state.info.id.rawValue.uuidString }
+  private var state: State
+  private var users: Set<User> = .init()
   
-  distributed func message(_ message: User.Message, from user: User) async throws -> Event {
-    let event = try await self.handle(command: .user(user, message))
-    try self.handle(
-      event: event
-    )
+  distributed func send(_ message: User.Message, from user: User) async throws {
+    let userInfo = try await user.getUserInfo()
+    let event: Event = switch message {
+    case .join:
+        .user(userInfo, .joined)
+    case .message(let chatMessage):
+        .user(userInfo, .messageSent(chatMessage))
+    case .leave:
+        .user(userInfo, .left)
+    case .disconnect:
+        .user(userInfo, .disconnected)
+    }
+    try await self.emit(event: event)
+    self.handleEvent(event)
+    
     self.notifyOthersAbout(
       message: message,
       from: user
     )
   }
-
-  distributed public func handle(command: Command) async throws -> Event {
-    switch command {
-    case .user(let user, let command):
-      let userInfo = try await user.getUserInfo()
-      switch command {
-      case .join:
-        users.insert(user)
-        return .user(userInfo, .joined)
-      case .message(let message):
-        return .user(userInfo, .messageSent(message))
-      case .leave:
-        users.remove(user)
-        return .user(userInfo, .left)
-      case .disconnect:
-        users.remove(user)
-        return .user(userInfo, .disconnected)
-      }
-    }
-  }
   
-  public func handle(event: Event) throws {
+  distributed public func handleEvent(_ event: Event) {
     switch event {
     case .user(let user, let action):
       switch action {
@@ -72,14 +60,13 @@ public distributed actor Room: EventSourced {
         self.state.users.remove(user)
       }
     }
-    Task { await self.persist(event) }
   }
-  
+
   distributed public func getRoomInfo() -> RoomInfo {
     self.state.info
   }
   
-  distributed public func getMessages() -> [UserInfo: [ChatMessage]] {
+  distributed public func getMessages() -> [UserInfo: [String]] {
     self.state.messages
   }
   
@@ -88,14 +75,7 @@ public distributed actor Room: EventSourced {
     roomInfo: RoomInfo
   ) async throws {
     self.actorSystem = actorSystem
-    let id = roomInfo.id.rawValue.uuidString.lowercased()
     self.state = .init(info: roomInfo, users: [], messages: [:])
-//    self.state = try await eventSource
-//      .get(
-//        query: """
-//        SELECT command FROM events WHERE event->'roomId'->>'rawValue' ILIKE '\(id)';
-//        """
-//      )
     await actorSystem
       .receptionist
       .checkIn(self, with: .rooms)
@@ -124,12 +104,12 @@ extension Room {
   public struct State: Sendable, Codable, Equatable {
     let info: RoomInfo
     var users: Set<UserInfo> = .init()
-    var messages: [UserInfo: [ChatMessage]] = [:]
+    var messages: [UserInfo: [String]] = [:]
     
     public init(
       info: RoomInfo,
       users: Set<UserInfo>,
-      messages: [UserInfo: [ChatMessage]]
+      messages: [UserInfo: [String]]
     ) {
       self.info = info
       self.users = users

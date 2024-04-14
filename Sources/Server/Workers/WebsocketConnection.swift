@@ -10,7 +10,6 @@ import PostgresNIO
 
 actor WebsocketConnection {
 
-  let databaseNodeId: DatabaseNode.ID
   let room: Room
 
   private let persistence: Persistence
@@ -22,12 +21,10 @@ actor WebsocketConnection {
   init(
     actorSystem: ClusterSystem,
     ws: WebsocketApi.WebSocket,
-    databaseNodeId: DatabaseNode.ID,
     persistence: Persistence,
     room: Room,
     userModel: UserModel
   ) async throws {
-    self.databaseNodeId = databaseNodeId
     self.persistence = persistence
     self.room = room
     let userInfo = UserInfo(
@@ -42,7 +39,7 @@ actor WebsocketConnection {
       reply: .init { output in
         /// Start listening for messages from other users
         switch output {
-        case let .message(message, userInfo, _):
+        case let .message(message):
           let response = ChatResponse(
             createdAt: message.createdAt,
             user: .init(userInfo),
@@ -56,7 +53,7 @@ actor WebsocketConnection {
   }
   
   func start(ws: WebsocketApi.WebSocket) async throws {
-    await self.sendOldMessages()
+//    await self.sendOldMessages()
     try await self.join()
     self.listeningTask = Task {
       /// Join to the Room and start sending user messages
@@ -75,52 +72,48 @@ actor WebsocketConnection {
   
   /// Fetch all current room messages
   /// TODO: Move logic to room?
-  private func sendOldMessages() async {
-    let messages = (try? await room.getMessages()) ?? []
-    let users = await withTaskGroup(of: UserModel?.self) { group in
-      for message in messages {
-        switch message.message {
-        case .message:
-          group.addTask {
-            try? await self.persistence.getUser(id: message.userId.rawValue)
-          }
-        default:
-          break
-        }
-      }
-      return await group
-        .reduce(into: [UserModel]()) { partialResult, response in
-          guard let response else { return }
-          partialResult.append(response)
-        }
-    }
-    let responses = messages
-      .compactMap { message -> ChatResponse? in
-        switch message.message {
-        case .message(let text):
-          guard
-            let userModel = users
-              .first(where: { $0.id == message.userId.rawValue })
-          else { return .none }
-          return ChatResponse(
-            createdAt: message.createdAt,
-            user: .init(userModel),
-            message: .init(.message(text))
-          )
-        default:
-          return .none
-        }
-      }
-    self.send(messages: responses)
-  }
+//  private func sendOldMessages() async {
+//    let messages = (try? await room.getMessages()) ?? [:]
+//    let users = await withTaskGroup(of: UserModel?.self) { group in
+//      for message in messages.keys {
+//        group.addTask {
+//          try? await self.persistence.getUser(id: message.id.rawValue)
+//        }
+//      }
+//      return await group
+//        .reduce(into: [UserModel]()) { partialResult, response in
+//          guard let response else { return }
+//          partialResult.append(response)
+//        }
+//    }
+//    let responses = messages
+//      .compactMap { (userInfo, messages) -> ChatResponse? in
+//        guard
+//          let userModel = users
+//            .first(where: { $0.id == userInfo.id.rawValue })
+//        else { return .none }
+//        return ChatResponse(
+//          createdAt: message.createdAt,
+//          user: .init(userModel),
+//          message: .init(.message(text))
+//        )
+//      }
+//    self.send(messages: responses)
+//  }
   
   private func join() async throws {
-    let messageInfo = try await user.send(message: .join, to: room)
+    try await user.send(message: .join, to: room)
+    let message = try await MessageInfo(
+      createdAt: .init(),
+      roomId: room.getRoomInfo().id,
+      userId: self.userInfo.id,
+      message: .join
+    )
     self.send(
       message: ChatResponse(
-        createdAt: messageInfo.createdAt,
+        createdAt: message.createdAt,
         user: .init(self.userInfo),
-        message: .init(messageInfo.message)
+        message: .init(message.message)
       )
     )
   }
@@ -148,19 +141,31 @@ extension WebsocketConnection {
   ) async throws {
     switch message {
     case .text(let string):
+      try await user.send(
+        message: .message(string),
+        to: self.room
+      )
       try await self.send(
-        response: user.send(
-          message: .message(string),
-          to: self.room
+        response: MessageInfo(
+          createdAt: Date(),
+          roomId: self.room.getRoomInfo().id,
+          userId: self.userInfo.id,
+          message: .message(string)
         )
       )
       break
     case .response(let messages):
       for message in messages {
+        try await user.send(
+          message: .init(message),
+          to: self.room
+        )
         try await self.send(
-          response: user.send(
-            message: .init(message),
-            to: self.room
+          response: MessageInfo(
+            createdAt: Date(),
+            roomId: self.room.getRoomInfo().id,
+            userId: self.userInfo.id,
+            message: .init(message)
           )
         )
       }
@@ -193,7 +198,7 @@ extension WebsocketConnection {
 }
 
 fileprivate extension ChatResponse.Message {
-  init(_ message: Backend.Message) {
+  init(_ message: User.Message) {
     self = switch message {
     case .join: .join
     case .message(let string): .message(string)
@@ -203,7 +208,7 @@ fileprivate extension ChatResponse.Message {
   }
 }
 
-fileprivate extension Backend.Message {
+fileprivate extension User.Message {
   init(_ message: ChatResponse.Message) {
     self = switch message {
     case .join: .join

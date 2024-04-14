@@ -1,18 +1,19 @@
 import Foundation
+import DistributedCluster
 
 public actor MemoryEventStore: EventStore {
   
-  var dict: [String: [Data]] = [:]
+  var dict: [PersistenceID: [Data]] = [:]
   let encoder: JSONEncoder = JSONEncoder()
   let decoder: JSONDecoder = JSONDecoder()
-
-  public func persistEvent<Event: Encodable>(_ event: Event, for id: String) async throws {
-    let event = try encoder.encode(event)
-    self.dict[id, default: []].append(event)
+  
+  public func persistEvent<Event: Encodable>(_ event: Event, id: PersistenceID) throws {
+    let data = try encoder.encode(event)
+    self.dict[id, default: []].append(data)
   }
   
-  public func eventsFor<Event: Decodable>(_ persistenceId: String) async throws -> [Event] {
-    self.dict[persistenceId]?.compactMap {
+  public func eventsFor<Event: Decodable>(id: PersistenceID) throws -> [Event] {
+    self.dict[id]?.compactMap {
       try? decoder.decode(Event.self, from: $0)
     } ?? []
   }

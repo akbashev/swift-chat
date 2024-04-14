@@ -1,29 +1,28 @@
 import DistributedCluster
 import Backend
 import VirtualActor
+import EventSource
 
 enum StandaloneNode: Node {
   static func run(
     host: String,
     port: Int
   ) async throws {
+    let eventStore = MemoryEventStore()
+    
     let mainNode = await ClusterSystem("main") {
       $0.bindHost = host
       $0.bindPort = port
       $0.plugins.install(plugin: ClusterSingletonPlugin())
+      $0.plugins.install(plugin: ClusterJournalPlugin(store: eventStore))
     }
     let roomNode = await ClusterSystem("roomNode") {
       $0.bindHost = host
       $0.bindPort = port + 1
     }
-    let dbNode = await ClusterSystem("dbNode") {
-      $0.bindHost = host
-      $0.bindPort = port + 2
-    }
     roomNode.cluster.join(node: mainNode.cluster.node)
-    dbNode.cluster.join(node: mainNode.cluster.node)
     
-    try await Self.ensureCluster(mainNode, roomNode, dbNode, within: .seconds(10))
+    try await Self.ensureCluster(mainNode, roomNode, within: .seconds(10))
     
     // We need references for ARC not to clean them up
     let _ = try await FrontendNode(
@@ -31,9 +30,6 @@ enum StandaloneNode: Node {
     )
     let room = await VirtualNode<Room, RoomInfo>(
       actorSystem: roomNode
-    )
-    let databaseNode = try await DatabaseNode(
-      actorSystem: dbNode
     )
     try await mainNode.terminated
   }

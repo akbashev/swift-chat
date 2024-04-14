@@ -7,17 +7,16 @@ public distributed actor User {
   
   public enum Message: Sendable, Codable, Equatable {
     case join
-    case message(ChatMessage)
+    case message(String)
     case leave
     case disconnect
   }
-  
   
   private var state: State
   private let reply: Reply
   
   // API
-  distributed public func send(message: Event, to room: Room) {
+  distributed public func send(message: Message, to room: Room) async throws {
     switch message {
       case .join:
         try await self.join(room: room)
@@ -31,20 +30,23 @@ public distributed actor User {
   }
     
   // Room
-  distributed func notify(_ message: MessageInfo, user: User, from room: Room) {
+  distributed func notify(_ message: User.Message, user: User, from room: Room) {
     Task {
       let userInfo = try await user.getUserInfo()
       try await self.reply.send(
         Output.message(
-          message,
-          user: userInfo,
-          room: room.getRoomInfo()
+          .init(
+            createdAt: .init(),
+            roomId: room.getRoomInfo().id,
+            userId: userInfo.id,
+            message: message
+          )
         )
       )
     }
   }
   
-  distributed func getUserInfo() -> UserInfo {
+  distributed public func getUserInfo() -> UserInfo {
     self.state.info
   }
   
@@ -61,22 +63,20 @@ public distributed actor User {
     await self.actorSystem.receptionist.checkIn(self, with: .users)
   }
   
-  private func join(room: Room) async throws -> MessageInfo {
-    let info = try await room.message(.join, from: self)
+  private func join(room: Room) async throws {
+    try await room.send(.join, from: self)
     self.state.rooms.insert(room)
-    return info
   }
   
-  private func leave(room: Room) async throws -> MessageInfo {
+  private func leave(room: Room) async throws {
     guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
-    let info = try await room.message(.leave, from: self)
+    try await room.send(.leave, from: self)
     self.state.rooms.remove(room)
-    return info
   }
   
-  private func disconnect(room: Room) async throws -> MessageInfo {
+  private func disconnect(room: Room) async throws {
     guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
-    return try await room.message(.disconnect, from: self)
+    try await room.send(.disconnect, from: self)
   }
 }
 
@@ -95,7 +95,7 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(MessageInfo, user: UserInfo, room: RoomInfo)
+    case message(MessageInfo)
   }
 
   private struct State: Equatable {
