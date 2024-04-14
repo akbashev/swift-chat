@@ -133,10 +133,13 @@ extension FrontendNode: Node {
     host: String,
     port: Int
   ) async throws {
+    let eventStore = MemoryEventStore()
+    
     let actorSystem = await ClusterSystem("frontend") {
       $0.bindHost = host
       $0.bindPort = port
       $0.plugins.install(plugin: ClusterSingletonPlugin())
+      $0.plugins.install(plugin: ClusterJournalPlugin(store: eventStore))
     }
     let frontend = try await Self(
       actorSystem: actorSystem

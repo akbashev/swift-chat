@@ -53,7 +53,7 @@ actor WebsocketConnection {
   }
   
   func start(ws: WebsocketApi.WebSocket) async throws {
-//    await self.sendOldMessages()
+    await self.sendOldMessages()
     try await self.join()
     self.listeningTask = Task {
       /// Join to the Room and start sending user messages
@@ -70,36 +70,38 @@ actor WebsocketConnection {
     }
   }
   
-  /// Fetch all current room messages
-  /// TODO: Move logic to room?
-//  private func sendOldMessages() async {
-//    let messages = (try? await room.getMessages()) ?? [:]
-//    let users = await withTaskGroup(of: UserModel?.self) { group in
-//      for message in messages.keys {
-//        group.addTask {
-//          try? await self.persistence.getUser(id: message.id.rawValue)
-//        }
-//      }
-//      return await group
-//        .reduce(into: [UserModel]()) { partialResult, response in
-//          guard let response else { return }
-//          partialResult.append(response)
-//        }
-//    }
-//    let responses = messages
-//      .compactMap { (userInfo, messages) -> ChatResponse? in
-//        guard
-//          let userModel = users
-//            .first(where: { $0.id == userInfo.id.rawValue })
-//        else { return .none }
-//        return ChatResponse(
-//          createdAt: message.createdAt,
-//          user: .init(userModel),
-//          message: .init(.message(text))
-//        )
-//      }
-//    self.send(messages: responses)
-//  }
+  // Fetch all current room messages
+  // TODO: Move logic to room?
+  private func sendOldMessages() async {
+    let messages = (try? await room.getMessages()) ?? [:]
+    let users = await withTaskGroup(of: UserModel?.self) { group in
+      for message in messages.keys {
+        group.addTask {
+          try? await self.persistence.getUser(id: message.id.rawValue)
+        }
+      }
+      return await group
+        .reduce(into: [UserModel]()) { partialResult, response in
+          guard let response else { return }
+          partialResult.append(response)
+        }
+    }
+    let responses = messages
+      .reduce(into: [ChatResponse](), { partialResult, value in
+        let (key, messages) = value
+        for message in messages {
+          partialResult.append(
+            ChatResponse(
+              createdAt: message.createdAt,
+              user: .init(key),
+              message: .init(message.message)
+            )
+          )
+        }
+      }
+    )
+    self.send(messages: responses)
+  }
   
   private func join() async throws {
     try await user.send(message: .join, to: room)

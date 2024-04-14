@@ -15,7 +15,7 @@ public distributed actor Room: EventSourced {
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
       case joined
-      case messageSent(String)
+      case messageSent(String, at: Date)
       case left
       case disconnected
     }
@@ -32,11 +32,20 @@ public distributed actor Room: EventSourced {
     case .join:
         .user(userInfo, .joined)
     case .message(let chatMessage):
-        .user(userInfo, .messageSent(chatMessage))
+        .user(userInfo, .messageSent(chatMessage, at: Date()))
     case .leave:
         .user(userInfo, .left)
     case .disconnect:
         .user(userInfo, .disconnected)
+    }
+    switch message {
+    case .join:
+      self.users.insert(user)
+    case .leave,
+        .disconnect:
+      self.users.remove(user)
+    default:
+      break
     }
     try await self.emit(event: event)
     self.handleEvent(event)
@@ -53,8 +62,15 @@ public distributed actor Room: EventSourced {
       switch action {
       case .joined:
         self.state.users.insert(user)
-      case .messageSent(let message):
-        self.state.messages[user, default: []].append(message)
+      case .messageSent(let message, let date):
+        self.state.messages[user, default: []].append(
+          .init(
+            createdAt: date,
+            roomId: self.state.info.id,
+            userId: user.id,
+            message: .message(message)
+          )
+        )
       case .left,
           .disconnected:
         self.state.users.remove(user)
@@ -66,7 +82,7 @@ public distributed actor Room: EventSourced {
     self.state.info
   }
   
-  distributed public func getMessages() -> [UserInfo: [String]] {
+  distributed public func getMessages() -> [UserInfo: [MessageInfo]] {
     self.state.messages
   }
   
@@ -104,12 +120,12 @@ extension Room {
   public struct State: Sendable, Codable, Equatable {
     let info: RoomInfo
     var users: Set<UserInfo> = .init()
-    var messages: [UserInfo: [String]] = [:]
+    var messages: [UserInfo: [MessageInfo]] = [:]
     
     public init(
       info: RoomInfo,
       users: Set<UserInfo>,
-      messages: [UserInfo: [String]]
+      messages: [UserInfo: [MessageInfo]]
     ) {
       self.info = info
       self.users = users
