@@ -47,7 +47,7 @@ public distributed actor Room: EventSourced, VirtualActor {
     default:
       break
     }
-    self.notifyOthersAbout(
+    await self.notifyOthersAbout(
       message: message,
       from: user
     )
@@ -90,14 +90,11 @@ public distributed actor Room: EventSourced, VirtualActor {
     self.state = .init(info: roomInfo, users: [], messages: [:])
   }
   
-  // non-structured
-  private func notifyOthersAbout(message: User.Message, from user: User) {
-    Task {
-      await withTaskGroup(of: Void.self) { group in
-        for other in self.users where user != other {
-          group.addTask {
-            try? await other.notify(message, user: user, from: self)
-          }
+  private func notifyOthersAbout(message: User.Message, from user: User) async {
+    await withTaskGroup(of: Void.self) { group in
+      for other in self.users where user.id != other.id {
+        group.addTask {
+          try? await other.notify(message, user: user, from: self)
         }
       }
     }
