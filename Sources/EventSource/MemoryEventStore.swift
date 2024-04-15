@@ -23,7 +23,7 @@ public class MemoryEventStore: EventStore {
   }
 }
 
-private extension JSONDecoder {
+extension JSONDecoder {
   func decode<T: Decodable>(_ data: Data) -> T? {
     try? self.decode(T.self, from: data)
   }
