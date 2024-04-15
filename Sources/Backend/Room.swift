@@ -28,6 +28,16 @@ public distributed actor Room: EventSourced, VirtualActor {
     case .disconnect:
         .user(userInfo, .disconnected)
     }
+    do {
+      /// We're saving state by saving an event
+      /// Emit function also calls `handleEvent(_:)` internally, so will update state
+      /// Otherwise—don't update the state! Order and fact of saving is important.
+      try await self.emit(event: event)
+    } catch {
+      // Retry?
+      self.actorSystem.log.error("Emitting failed, reason: \(error)")
+    }
+    // after saving event—update other states
     switch message {
     case .join:
       self.users.insert(user)
@@ -37,8 +47,6 @@ public distributed actor Room: EventSourced, VirtualActor {
     default:
       break
     }
-    try await self.emit(event: event)
-    self.handleEvent(event)
     self.notifyOthersAbout(
       message: message,
       from: user

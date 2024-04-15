@@ -19,8 +19,8 @@ struct Server: AsyncParsableCommand {
   
   static let plugins: [any _Plugin] = [
     ClusterSingletonPlugin(),
-    ClusterJournalPlugin {
-      MemoryEventStore(actorSystem: $0)
+    ClusterJournalPlugin { _ in
+      MemoryEventStore()
     },
     ClusterVirtualActorsPlugin()
   ]

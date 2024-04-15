@@ -11,12 +11,7 @@ enum StandaloneNode: Node {
     let mainNode = await ClusterSystem("main") {
       $0.bindHost = host
       $0.bindPort = port
-      $0.plugins.install(plugin: ClusterSingletonPlugin())
-      $0.plugins.install(
-        plugin: ClusterJournalPlugin {
-          MemoryEventStore(actorSystem: $0)
-        }
-      )
+      $0.installPlugins()
     }
     let roomNode = await ClusterSystem("roomNode") {
       $0.bindHost = host
