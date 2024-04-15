@@ -88,9 +88,6 @@ public distributed actor Room: EventSourced, VirtualActor {
   ) async {
     self.actorSystem = actorSystem
     self.state = .init(info: roomInfo, users: [], messages: [:])
-    await actorSystem
-      .receptionist
-      .checkIn(self, with: .rooms)
   }
   
   // non-structured
@@ -142,8 +139,4 @@ extension Room {
       self.messages = messages
     }
   }
-}
-
-extension DistributedReception.Key {
-  public static var rooms: DistributedReception.Key<Room> { "rooms" }
 }

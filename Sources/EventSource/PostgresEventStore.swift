@@ -12,7 +12,7 @@ public class PostgresEventStore: EventStore {
   public func persistEvent<Event: Codable>(_ event: Event, id: PersistenceID) async throws {
     let data = try encoder.encode(event)
     let nextSequenceNumber = try await self.nextSequenceNumber(for: id)
-    var buffer = ByteBufferAllocator().buffer(capacity: data.count)
+    let buffer = ByteBufferAllocator().buffer(capacity: data.count)
     try await connection.query(
       "INSERT INTO events (persistence_id, sequence_number, event) VALUES (\(id), \(nextSequenceNumber), \(buffer))",
       logger: connection.logger
