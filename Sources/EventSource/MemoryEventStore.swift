@@ -1,5 +1,6 @@
 import Foundation
 import DistributedCluster
+import EventSourcing
 
 public class MemoryEventStore: EventStore {
   

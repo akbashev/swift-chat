@@ -5,6 +5,7 @@ import Frontend
 import Foundation
 import EventSource
 import VirtualActor
+import EventSourcing
 
 typealias DefaultDistributedActorSystem = ClusterSystem
 

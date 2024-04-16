@@ -2,6 +2,7 @@ import Foundation
 import PostgresNIO
 import NIOCore
 import DistributedCluster
+import EventSourcing
 
 public class PostgresEventStore: EventStore {
   

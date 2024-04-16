@@ -3,6 +3,7 @@ import DistributedCluster
 import EventSource
 import Foundation
 import VirtualActor
+import EventSourcing
 
 public distributed actor Room: EventSourced, VirtualActor {
   public typealias ActorSystem = ClusterSystem
