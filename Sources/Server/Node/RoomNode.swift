@@ -13,7 +13,7 @@ enum RoomNode: Node {
       $0.bindPort = port
       $0.installPlugins()
     }
-    roomNode.cluster.join(host: "127.0.0.1", port: 2550)
+    roomNode.cluster.join(host: "127.0.0.1", port: 2550) // <- here should be `seed` host and port
     try await Self.ensureCluster(roomNode, within: .seconds(10))
     await roomNode.virtualActors.addNode(VirtualNode(actorSystem: roomNode))
     try await roomNode.terminated

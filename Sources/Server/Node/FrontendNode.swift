@@ -121,15 +121,16 @@ extension FrontendNode: Node {
     host: String,
     port: Int
   ) async throws {
-    let actorSystem = await ClusterSystem("frontend") {
+    let frontendNode = await ClusterSystem("frontend") {
       $0.bindHost = host
       $0.bindPort = port
       $0.installPlugins()
     }
+    // We need references for ARC not to clean them up
     let frontend = try await FrontendNode(
-      actorSystem: actorSystem
+      actorSystem: frontendNode
     )
-    try await actorSystem.terminated
+    try await frontendNode.terminated
   }
 }
 
