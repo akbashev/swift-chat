@@ -14,7 +14,8 @@ var package = Package(
   ],
   dependencies: [
     // Apple
-    .package(url: "https://github.com/apple/swift-distributed-actors.git", branch: "main"),
+    .package(url: "https://github.com/akbashev/swift-distributed-actors.git", branch: "plugin_lifecycle_hook"),
+    .package(url: "https://github.com/akbashev/cluster-event-sourcing.git", branch: "main"),
     .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
     // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "1.0.0"),
@@ -37,12 +38,14 @@ var package = Package(
       name: "Backend",
       dependencies: [
         "EventSource",
+        "VirtualActor",
         .product(name: "DistributedCluster", package: "swift-distributed-actors")
       ]
     ),
     .target(
       name: "EventSource",
       dependencies: [
+        .product(name: "EventSourcing", package: "cluster-event-sourcing"),
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
         .product(name: "PostgresNIO", package: "postgres-nio"),
       ]
@@ -72,6 +75,7 @@ var package = Package(
     .executableTarget(
       name: "Server",
       dependencies: [
+        .product(name: "EventSourcing", package: "cluster-event-sourcing"),
         .product(name: "ArgumentParser", package: "swift-argument-parser"),
         "Backend",
         "Frontend",

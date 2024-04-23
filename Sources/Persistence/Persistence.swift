@@ -23,7 +23,7 @@ protocol Persistable {
   func getUser(id: UUID) async throws -> UserModel
 }
 
-distributed public actor Persistence {
+public actor Persistence {
   
   public typealias ActorSystem = ClusterSystem
   
@@ -45,31 +45,29 @@ distributed public actor Persistence {
   
   private let persistance: any Persistable
   
-  distributed public func create(_ input: Input) async throws {
+  public func create(_ input: Input) async throws {
     try await self.persistance.create(input: input)
   }
   
-  distributed public func update(_ input: Input) async throws {
+  public func update(_ input: Input) async throws {
     try await self.persistance.update(input: input)
   }
   
-  distributed public func getUser(id: UUID) async throws -> UserModel {
+  public func getUser(id: UUID) async throws -> UserModel {
     try await self.persistance.getUser(id: id)
   }
   
-  distributed public func getRoom(id: UUID) async throws -> RoomModel {
+  public func getRoom(id: UUID) async throws -> RoomModel {
     try await self.persistance.getRoom(id: id)
   }
   
-  distributed public func searchRoom(query: String) async throws -> [RoomModel] {
+  public func searchRoom(query: String) async throws -> [RoomModel] {
     try await self.persistance.searchRoom(query: query)
   }
   
   public init(
-    actorSystem: ClusterSystem,
     type: `Type`
   ) async throws {
-    self.actorSystem = actorSystem
     switch type {
     case .memory:
       self.persistance = Cache()
@@ -78,14 +76,7 @@ distributed public actor Persistence {
         configuration: configuration
       )
     }
-    await actorSystem
-      .receptionist
-      .checkIn(self, with: .persistence)
   }
-}
-
-extension DistributedReception.Key {
-  public static var persistence: DistributedReception.Key<Persistence> { "persistences" }
 }
 
 extension PostgresConnection.Configuration: @unchecked Sendable {}

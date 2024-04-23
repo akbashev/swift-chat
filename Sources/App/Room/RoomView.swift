@@ -32,7 +32,7 @@ public struct RoomView: View {
           messagesToSend: $0.messagesToSend
             .compactMap { message -> String? in
               switch message {
-              case .message(let text):
+              case .message(let text, _):
                 return text
               default:
                 return .none
@@ -55,7 +55,7 @@ public struct RoomView: View {
                     Text("\(response.user.name) disconnected. 💤😴")
                   case .leave:
                     Text("\(response.user.name) left the chat. 👋🥲")
-                  case .message(let message) where response.user.id == viewStore.userId:
+                  case .message(let message, let date) where response.user.id == viewStore.userId:
                     HStack {
                       Spacer()
                       Text(message)
@@ -75,7 +75,7 @@ public struct RoomView: View {
                         )
                         .clipShape(Capsule())
                     }
-                  case .message(let message):
+                  case .message(let message, let date):
                     HStack {
                       VStack(alignment: .leading, spacing: 2) {
                         Text(response.user.name + ":")
