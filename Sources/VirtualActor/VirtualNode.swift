@@ -9,10 +9,7 @@ distributed public actor VirtualNode {
   
   private lazy var virtualActors: [VirtualID: any VirtualActor] = [:]
   
-  distributed func register<A: VirtualActor>(actor: A) {
-    guard let id = actor.metadata.virtualID else {
-      fatalError("Virtual actor ID is not defined, please do it by defining an @ActorID.Metadata(\\.virtualID) property")
-    }
+  distributed func register<A: VirtualActor>(actor: A, with id: VirtualID) {
     self.virtualActors[id] = actor
   }
   
@@ -24,9 +21,12 @@ distributed public actor VirtualNode {
   }
   
   distributed public func close(
-    with id: VirtualID
+    with id: ClusterSystem.ActorID
   ) async {
-    self.virtualActors.removeValue(forKey: id)
+    let value = self.virtualActors.first(where: { $0.value.id == id })
+    if let virtualId = value?.key {
+      self.virtualActors.removeValue(forKey: virtualId)
+    }
   }
   
   public init(

@@ -21,8 +21,8 @@ public actor ClusterVirtualActorsPlugin {
     } catch {
       switch error {
       case VirtualActorFactory.Error.noActorsAvailable:
-        let actor: A = try await factory(actorSystem)
-        try await self.factory.register(actor: actor)
+        let actor: A = try await factory(self.actorSystem)
+        try await self.factory.register(actor: actor, with: id)
         return actor
       default:
         throw error
@@ -37,7 +37,7 @@ public actor ClusterVirtualActorsPlugin {
   }
 }
 
-extension ClusterVirtualActorsPlugin: Plugin {
+extension ClusterVirtualActorsPlugin: ActorLifecyclePlugin {
   
   static let pluginKey: Key = "$clusterVirtualActors"
   
@@ -59,6 +59,15 @@ extension ClusterVirtualActorsPlugin: Plugin {
     self.factory = nil
     self.nodes.removeAll()
   }
+  
+  nonisolated public func onActorReady<Act: DistributedActor>(_ actor: Act) where Act.ID == ClusterSystem.ActorID {
+    // no-op
+  }
+  
+  nonisolated public func onResignID(_ id: ClusterSystem.ActorID) {
+    Task { [weak self] in try await self?.factory.close(with: id) }
+  }
+  
 }
 
 extension ClusterSystem {

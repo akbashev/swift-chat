@@ -44,21 +44,27 @@ distributed actor VirtualActorFactory: LifecycleWatch, ClusterSingleton {
     throw Error.noActorsAvailable
   }
   
-  distributed func register<A: VirtualActor>(actor: A) async throws {
+  /// Actors should be cleaned automatically, but for now unfortunately manual cleaning.
+  distributed func close(
+    with id: ClusterSystem.ActorID
+  ) async {
+    await withTaskGroup(of: Void.self) { group in
+      for virtualNode in virtualNodes {
+        group.addTask {
+          try? await virtualNode.close(with: id)
+        }
+      }
+    }
+  }
+  
+  distributed func register<A: VirtualActor>(actor: A, with id: VirtualID) async throws {
     guard let node = virtualNodes.randomElement() else {
       // There should be always a node (at least local node), if not—something sus
       throw Error.noNodesAvailable
     }
-    try await node.register(actor: actor)
+    try await node.register(actor: actor, with: id)
   }
   
-  /// Actors should be cleaned automatically, but for now unfortunately manual cleaning.
-  distributed func closeActor(for id: VirtualID) async {
-    for node in virtualNodes {
-      try? await node.close(with: id)
-    }
-  }
-
   /// - Parameters:
   ///  - spawn—definining how an actor should be created.
   ///  Local node is created while initialising a factory.
