@@ -11,8 +11,11 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   public static var virtualFactoryKey: String = "rooms"
   
-  distributed public var persistenceId: PersistenceID { self.state.info.id.rawValue.uuidString }
-  distributed public var virtualId: VirtualID { self.persistenceId }
+  @ActorID.Metadata(\.persistenceID)
+  var persistenceId: PersistenceID
+  
+  @ActorID.Metadata(\.virtualID)
+  var virtualId: VirtualID
   
   private var state: State
   private var users: Set<User> = .init()
@@ -89,6 +92,9 @@ public distributed actor Room: EventSourced, VirtualActor {
   ) async {
     self.actorSystem = actorSystem
     self.state = .init(info: roomInfo, users: [], messages: [:])
+    let roomId = roomInfo.id.rawValue.uuidString
+    self.persistenceId = roomId
+    self.virtualId = roomId
   }
   
   private func notifyOthersAbout(message: User.Message, from user: User) async {

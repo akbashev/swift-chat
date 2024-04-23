@@ -103,10 +103,7 @@ extension FrontendNode {
     with info: WebsocketApi.Event.Info
   ) async throws -> Room {
     let roomModel = try await self.persistence.getRoom(id: info.roomId)
-    return try await Room.virtual(
-      actorSystem: self.actorSystem,
-      id: info.roomId.uuidString
-    ) { actorSystem in
+    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
       await Room(
         actorSystem: actorSystem,
         roomInfo: .init(

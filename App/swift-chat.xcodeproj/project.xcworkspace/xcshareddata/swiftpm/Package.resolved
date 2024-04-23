@@ -6,7 +6,7 @@
       "location" : "https://github.com/akbashev/cluster-event-sourcing.git",
       "state" : {
         "branch" : "main",
-        "revision" : "6a246b3be70cf0817a5d4b2937fd8d24aeb759f8"
+        "revision" : "8188210b0f30eafeec0c1b9a741846db0545ed8b"
       }
     },
     {
@@ -32,8 +32,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
       "state" : {
-        "revision" : "94820eab2b9c044eb614a2d40cae60a027950e26",
-        "version" : "1.12.1"
+        "revision" : "c33220bf0d229eb127cb4a998c99c0d7554fd641",
+        "version" : "1.12.2"
       }
     },
     {
@@ -41,8 +41,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird-core.git",
       "state" : {
-        "revision" : "502abf07438b0d254ca8a28a50aab2ac5bca4599",
-        "version" : "1.6.0"
+        "revision" : "2a16f079f78b2a746ad57b3931c366cd14961927",
+        "version" : "1.6.1"
       }
     },
     {
@@ -140,8 +140,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-composable-architecture.git",
       "state" : {
-        "revision" : "115fe5af41d333b6156d4924d7c7058bc77fd580",
-        "version" : "1.9.2"
+        "revision" : "899a68ce3c4eca42a42e6bad2c925b82dcab5187",
+        "version" : "1.9.3"
       }
     },
     {
@@ -183,10 +183,10 @@
     {
       "identity" : "swift-distributed-actors",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/akbashev/swift-distributed-actors",
+      "location" : "https://github.com/akbashev/swift-distributed-actors.git",
       "state" : {
         "branch" : "plugin_lifecycle_hook",
-        "revision" : "168bd4c5002917ac4f18ce2f5692e11348def20f"
+        "revision" : "747ad8d91bd73ff4f478c9eb7cd668254c8804a5"
       }
     },
     {

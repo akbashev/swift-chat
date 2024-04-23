@@ -18,7 +18,7 @@ struct Server: AsyncParsableCommand {
     case room
   }
   
-  static let plugins: [any _Plugin] = [
+  static let plugins: [any Plugin] = [
     ClusterSingletonPlugin(),
     ClusterJournalPlugin { _ in
       MemoryEventStore()
