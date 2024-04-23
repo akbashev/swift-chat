@@ -15,7 +15,7 @@ enum RoomNode: Node {
     }
     roomNode.cluster.join(host: "127.0.0.1", port: 2550)
     try await Self.ensureCluster(roomNode, within: .seconds(10))
-    let node = await VirtualNode(actorSystem: roomNode)
+    await roomNode.virtualActors.addNode(VirtualNode(actorSystem: roomNode))
     try await roomNode.terminated
   }
 }
