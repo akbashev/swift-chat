@@ -10,7 +10,7 @@ public distributed actor User {
   private var state: State
   private let reply: Reply
   
-  distributed public var info: UserInfo {
+  distributed public var info: User.Info {
     get async throws { self.state.info }
   }
   
@@ -45,7 +45,7 @@ public distributed actor User {
   
   public init(
     actorSystem: ClusterSystem,
-    userInfo: UserInfo,
+    userInfo: User.Info,
     reply: @escaping Reply
   ) {
     self.actorSystem = actorSystem
@@ -74,6 +74,28 @@ public distributed actor User {
 
 extension User {
   
+  public struct Info: Sendable, Hashable, Codable, Equatable {
+    
+    public struct ID: Sendable, Hashable, Codable, Equatable, RawRepresentable {
+      public let rawValue: UUID
+      
+      public init(rawValue: UUID) {
+        self.rawValue = rawValue
+      }
+    }
+    
+    public let id: ID
+    public let name: String
+    
+    public init(
+      id: UUID,
+      name: String
+    ) {
+      self.id = .init(rawValue: id)
+      self.name = name
+    }
+  }
+  
   public enum Message: Sendable, Codable, Equatable {
     case join
     case message(String, at: Date)
@@ -86,11 +108,11 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(MessageInfo, from: UserInfo)
+    case message(MessageInfo, from: User.Info)
   }
 
   private struct State: Equatable {
     var rooms: Set<Room> = .init()
-    let info: UserInfo
+    let info: User.Info
   }
 }

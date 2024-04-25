@@ -13,7 +13,7 @@ actor WebsocketConnection {
   let room: Room
 
   private let persistence: Persistence
-  private let userInfo: UserInfo
+  private let userInfo: User.Info
   private let user: User
   private let ws: WebsocketApi.WebSocket
   private var listeningTask: Task<Void, Error>?
@@ -27,7 +27,7 @@ actor WebsocketConnection {
   ) async throws {
     self.persistence = persistence
     self.room = room
-    let userInfo = UserInfo(
+    let userInfo = User.Info(
       id: userModel.id,
       name: userModel.name
     )
@@ -209,7 +209,7 @@ fileprivate extension User.Message {
 }
 
 fileprivate extension UserResponse {
-  init(_ userInfo: UserInfo) {
+  init(_ userInfo: User.Info) {
     self.init(
       id: userInfo.id.rawValue,
       name: userInfo.name
@@ -228,7 +228,7 @@ fileprivate extension UserResponse {
 
 
 fileprivate extension RoomResponse {
-  init(_ roomInfo: RoomInfo) {
+  init(_ roomInfo: Room.Info) {
     self.init(
       id: roomInfo.id.rawValue,
       name: roomInfo.name,

@@ -17,11 +17,11 @@ public distributed actor Room: EventSourced, VirtualActor {
   private var state: State
   private var users: Set<User> = .init()
   
-  distributed public var info: RoomInfo {
+  distributed public var info: Room.Info {
     get async throws { self.state.info }
   }
   
-  distributed public var userMessages: [UserInfo: [MessageInfo]] {
+  distributed public var userMessages: [User.Info: [MessageInfo]] {
     get async throws { self.state.messages }
   }
   
@@ -86,7 +86,7 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   public init(
     actorSystem: ClusterSystem,
-    roomInfo: RoomInfo
+    roomInfo: Room.Info
   ) async {
     self.actorSystem = actorSystem
     self.state = .init(info: roomInfo, users: [], messages: [:])
@@ -107,8 +107,33 @@ public distributed actor Room: EventSourced, VirtualActor {
 
 extension Room {
   
+  public struct Info: Hashable, Sendable, Codable, Equatable {
+    
+    public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
+      public let rawValue: UUID
+      
+      public init(rawValue: UUID) {
+        self.rawValue = rawValue
+      }
+    }
+
+    public let id: ID
+    public let name: String
+    public let description: String?
+    
+    public init(
+      id: UUID,
+      name: String,
+      description: String?
+    ) {
+      self.id = .init(rawValue: id)
+      self.name = name
+      self.description = description
+    }
+  }
+  
   public enum Message: Sendable, Codable, Equatable {
-    case fromUser(UserInfo, content: User.Message)
+    case fromUser(User.Info, content: User.Message)
   }
   
   public enum Event: Sendable, Codable, Equatable {
@@ -118,7 +143,7 @@ extension Room {
       case left
       case disconnected
     }
-    case userDid(Action, info: UserInfo)
+    case userDid(Action, info: User.Info)
   }
   
   public enum Error: Swift.Error {
@@ -126,14 +151,14 @@ extension Room {
   }
 
   public struct State: Sendable, Codable, Equatable {
-    let info: RoomInfo
-    var users: Set<UserInfo> = .init()
-    var messages: [UserInfo: [MessageInfo]] = [:]
+    let info: Room.Info
+    var users: Set<User.Info> = .init()
+    var messages: [User.Info: [MessageInfo]] = [:]
     
     public init(
-      info: RoomInfo,
-      users: Set<UserInfo>,
-      messages: [UserInfo: [MessageInfo]]
+      info: Room.Info,
+      users: Set<User.Info>,
+      messages: [User.Info: [MessageInfo]]
     ) {
       self.info = info
       self.users = users

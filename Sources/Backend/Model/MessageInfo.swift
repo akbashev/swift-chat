@@ -2,13 +2,13 @@ import Foundation
 
 public struct MessageInfo: Sendable, Codable, Equatable {
   
-  public let roomId: RoomInfo.ID
-  public let userId: UserInfo.ID
+  public let roomId: Room.Info.ID
+  public let userId: User.Info.ID
   public let message: User.Message
   
   public init(
-    roomId: RoomInfo.ID,
-    userId: UserInfo.ID,
+    roomId: Room.Info.ID,
+    userId: User.Info.ID,
     message: User.Message
   ) {
     self.roomId = roomId
