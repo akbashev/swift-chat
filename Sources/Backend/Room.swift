@@ -8,9 +8,7 @@ import EventSourcing
 public distributed actor Room: EventSourced, VirtualActor {
   public typealias ActorSystem = ClusterSystem
   public typealias Command = Message
-  
-  public static var virtualFactoryKey: String = "rooms"
-  
+    
   @ActorID.Metadata(\.persistenceID)
   var persistenceId: PersistenceID
 
