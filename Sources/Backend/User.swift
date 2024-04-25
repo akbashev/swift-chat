@@ -10,6 +10,10 @@ public distributed actor User {
   private var state: State
   private let reply: Reply
   
+  distributed public var info: UserInfo {
+    get async throws { self.state.info }
+  }
+  
   // API
   distributed public func send(message: Message, to room: Room) async throws {
     switch message {
@@ -26,11 +30,11 @@ public distributed actor User {
     
   // Room
   distributed func notify(_ message: User.Message, user: User, from room: Room) async throws {
-    let userInfo = try await user.getUserInfo()
+    let userInfo = try await user.info
     try await self.reply(
       Output.message(
         .init(
-          roomId: room.getRoomInfo().id,
+          roomId: room.info.id,
           userId: userInfo.id,
           message: message
         ),
@@ -38,8 +42,6 @@ public distributed actor User {
       )
     )
   }
-  
-  distributed public func getUserInfo() -> UserInfo { self.state.info }
   
   public init(
     actorSystem: ClusterSystem,

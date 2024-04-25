@@ -73,27 +73,31 @@ actor WebsocketConnection {
   // Fetch all current room messages
   // TODO: Move logic to room?
   private func sendOldMessages() async {
-    let messages = (try? await room.getMessages()) ?? [:]
-    let responses = messages
-      .reduce(into: [ChatResponse](), { partialResult, value in
-        let (key, messages) = value
-        for message in messages {
-          partialResult.append(
-            ChatResponse(
-              user: .init(key),
-              message: .init(message.message)
+    do {
+      let messages = try await room.userMessages
+      let responses = messages
+        .reduce(into: [ChatResponse](), { partialResult, value in
+          let (key, messages) = value
+          for message in messages {
+            partialResult.append(
+              ChatResponse(
+                user: .init(key),
+                message: .init(message.message)
+              )
             )
-          )
+          }
         }
-      }
-    )
-    self.send(messages: responses)
+      )
+      self.send(messages: responses)
+    } catch {
+      // log?
+    }
   }
   
   private func join() async throws {
     try await user.send(message: .join, to: room)
     let message = try await MessageInfo(
-      roomId: room.getRoomInfo().id,
+      roomId: room.info.id,
       userId: self.userInfo.id,
       message: .join
     )
@@ -135,7 +139,7 @@ extension WebsocketConnection {
       )
       try await self.send(
         response: MessageInfo(
-          roomId: self.room.getRoomInfo().id,
+          roomId: self.room.info.id,
           userId: self.userInfo.id,
           message: .message(string, at: createdAt)
         )
@@ -149,7 +153,7 @@ extension WebsocketConnection {
         )
         try await self.send(
           response: MessageInfo(
-            roomId: self.room.getRoomInfo().id,
+            roomId: self.room.info.id,
             userId: self.userInfo.id,
             message: .init(message)
           )

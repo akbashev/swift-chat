@@ -17,8 +17,16 @@ public distributed actor Room: EventSourced, VirtualActor {
   private var state: State
   private var users: Set<User> = .init()
   
+  distributed public var info: RoomInfo {
+    get async throws { self.state.info }
+  }
+  
+  distributed public var userMessages: [UserInfo: [MessageInfo]] {
+    get async throws { self.state.messages }
+  }
+  
   distributed func send(_ message: User.Message, from user: User) async throws {
-    let userInfo = try await user.getUserInfo()
+    let userInfo = try await user.info
     let event: Event = switch message {
     case .join:
         .userDid(.joined, info: userInfo)
@@ -74,14 +82,6 @@ public distributed actor Room: EventSourced, VirtualActor {
         self.state.users.remove(user)
       }
     }
-  }
-
-  distributed public func getRoomInfo() -> RoomInfo {
-    self.state.info
-  }
-  
-  distributed public func getMessages() -> [UserInfo: [MessageInfo]] {
-    self.state.messages
   }
   
   public init(
