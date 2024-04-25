@@ -1,37 +1,47 @@
-import HummingbirdFoundation
-import HummingbirdWebSocket
-import Distributed
-import DistributedCluster
-import Foundation
+import Hummingbird
+import HummingbirdCore
+import HummingbirdRouter
 
-public protocol RestApi {
-  func createUser(_ request: CreateUserRequest) async throws -> UserResponse
-  func creteRoom(_ request: CreateRoomRequest) async throws -> RoomResponse
-  func searchRoom(_ request: SearchRoomRequest) async throws -> [RoomResponse]
+public struct RestApi {
+  public let createUser: (_ request: CreateUserRequest) async throws -> UserResponse
+  public let creteRoom: (_ request: CreateRoomRequest) async throws -> RoomResponse
+  public let searchRoom: (_ request: SearchRoomRequest) async throws -> [RoomResponse]
+  
+  public init(
+    createUser: @escaping (_: CreateUserRequest) async throws -> UserResponse,
+    creteRoom: @escaping (_: CreateRoomRequest) async throws -> RoomResponse,
+    searchRoom: @escaping (_: SearchRoomRequest) async throws -> [RoomResponse]
+  ) {
+    self.createUser = createUser
+    self.creteRoom = creteRoom
+    self.searchRoom = searchRoom
+  }
 }
 
-extension RestApi {
-  public func configure(
-    router: HBRouterBuilder
+public extension RestApi {
+  static func configureRouter(
+    router: Router<BasicRequestContext>,
+    using api: RestApi
   ) {
-    router.get("hello") { _ in
-      return "Hello"
+    router.middlewares.add(LogRequestsMiddleware(.debug))
+    router.get("hello") { _, _ in "Hello"}
+    router.post("user") { req, context in
+      guard let user = try? await req.decode(as: CreateUserRequest.self, context: context)
+      else { throw HTTPError(.badRequest) }
+      return try await api.createUser(user)
     }
-    router.post("user") { req in
-      guard let user = try? req.decode(as: CreateUserRequest.self)
-      else { throw HBHTTPError(.badRequest) }
-      return try await self.createUser(user)
+    router.post("room") { req, context in
+      guard let room = try? await req.decode(as: CreateRoomRequest.self, context: context)
+      else { throw HTTPError(.badRequest) }
+      return try await api.creteRoom(room)
     }
-    router.post("room") { req in
-      guard let room = try? req.decode(as: CreateRoomRequest.self)
-      else { throw HBHTTPError(.badRequest) }
-      return try await self.creteRoom(room)
-    }
-    router.get("room/search") { req in
+    router.get("room/search") { req, context in
       guard let query = req.uri
         .queryParameters
-        .get("query", as: String.self) else { throw HBHTTPError(.badRequest) }
-      return try await self.searchRoom(.init(query: query))
+        .get("query", as: String.self) else { throw HTTPError(.badRequest) }
+      return try await api.searchRoom(.init(query: query))
     }
   }
 }
+
+

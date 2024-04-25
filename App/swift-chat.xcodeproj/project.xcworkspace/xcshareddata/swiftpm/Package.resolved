@@ -1,12 +1,21 @@
 {
   "pins" : [
     {
+      "identity" : "async-http-client",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swift-server/async-http-client.git",
+      "state" : {
+        "revision" : "fb308ee72f3d4c082a507033f94afa7395963ef3",
+        "version" : "1.21.0"
+      }
+    },
+    {
       "identity" : "cluster-event-sourcing",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/akbashev/cluster-event-sourcing.git",
       "state" : {
         "branch" : "main",
-        "revision" : "8188210b0f30eafeec0c1b9a741846db0545ed8b"
+        "revision" : "6ef0b386944a2c5748ec18592065a077c72c0691"
       }
     },
     {
@@ -32,17 +41,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
       "state" : {
-        "revision" : "c33220bf0d229eb127cb4a998c99c0d7554fd641",
-        "version" : "1.12.2"
-      }
-    },
-    {
-      "identity" : "hummingbird-core",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/hummingbird-project/hummingbird-core.git",
-      "state" : {
-        "revision" : "2a16f079f78b2a746ad57b3931c366cd14961927",
-        "version" : "1.6.1"
+        "revision" : "14795f2bfe621445755180e0c3812aabf05c13aa",
+        "version" : "2.0.0-beta.2"
       }
     },
     {
@@ -50,8 +50,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird-websocket.git",
       "state" : {
-        "revision" : "397f41e75fa28fce4a01214929942f59d11bff05",
-        "version" : "1.2.0"
+        "revision" : "1b9bdfc2b5ab0fc0648b04650d98850f574d94e8",
+        "version" : "2.0.0-alpha.3"
       }
     },
     {
@@ -59,8 +59,17 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/postgres-nio.git",
       "state" : {
-        "revision" : "69ccfdf4c80144d845e3b439961b7ec6cd7ae33f",
-        "version" : "1.20.2"
+        "revision" : "e345cbb9cf6052b37b27c0c4f976134fc01dbe15",
+        "version" : "1.21.1"
+      }
+    },
+    {
+      "identity" : "swift-algorithms",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-algorithms",
+      "state" : {
+        "revision" : "f6919dfc309e7f1b56224378b11e28bab5bccc42",
+        "version" : "1.2.0"
       }
     },
     {
@@ -199,18 +208,9 @@
       }
     },
     {
-      "identity" : "swift-extras-base64",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/swift-extras/swift-extras-base64.git",
-      "state" : {
-        "revision" : "97237cf1bc1feebaeb0febec91c1e1b9e4d839b3",
-        "version" : "0.7.0"
-      }
-    },
-    {
       "identity" : "swift-http-types",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-http-types",
+      "location" : "https://github.com/apple/swift-http-types.git",
       "state" : {
         "revision" : "12358d55a3824bd5fed310b999ea8cf83a9a1a65",
         "version" : "1.0.3"
@@ -248,8 +248,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio.git",
       "state" : {
-        "revision" : "fc63f0cf4e55a4597407a9fc95b16a2bc44b4982",
-        "version" : "2.64.0"
+        "revision" : "359c461e5561d22c6334828806cc25d759ca7aa6",
+        "version" : "2.65.0"
       }
     },
     {
@@ -266,8 +266,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-nio-http2.git",
       "state" : {
-        "revision" : "0904bf0feb5122b7e5c3f15db7df0eabe623dd87",
-        "version" : "1.30.0"
+        "revision" : "c6afe04165c865faaa687b42c32ed76dfcc91076",
+        "version" : "1.31.0"
       }
     },
     {
@@ -286,6 +286,15 @@
       "state" : {
         "revision" : "6cbe0ed2b394f21ab0d46b9f0c50c6be964968ce",
         "version" : "1.20.1"
+      }
+    },
+    {
+      "identity" : "swift-numerics",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/apple/swift-numerics.git",
+      "state" : {
+        "revision" : "0a5bc04095a675662cf24757cc0640aa2204253b",
+        "version" : "1.0.2"
       }
     },
     {
@@ -329,8 +338,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/swift-server/swift-service-lifecycle.git",
       "state" : {
-        "revision" : "22363fed316cd9942b56bcd1a1df8875df79b794",
-        "version" : "1.0.0-alpha.11"
+        "revision" : "d7fe0e731499a8dcce53bf4cbbc812c8e565d3a7",
+        "version" : "2.4.1"
       }
     },
     {

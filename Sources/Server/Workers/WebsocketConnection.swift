@@ -1,6 +1,6 @@
 import HummingbirdWSCore
 import HummingbirdWebSocket
-import HummingbirdFoundation
+import Hummingbird
 import Foundation
 import Frontend
 import Backend

@@ -21,13 +21,13 @@ public distributed actor Room: EventSourced, VirtualActor {
     let userInfo = try await user.getUserInfo()
     let event: Event = switch message {
     case .join:
-        .user(userInfo, .joined)
+        .userDid(.joined, info: userInfo)
     case .message(let chatMessage, let date):
-        .user(userInfo, .messageSent(chatMessage, at: date))
+        .userDid(.sentMessage(chatMessage, at: date), info: userInfo)
     case .leave:
-        .user(userInfo, .left)
+        .userDid(.left, info: userInfo)
     case .disconnect:
-        .user(userInfo, .disconnected)
+        .userDid(.disconnected, info: userInfo)
     }
     do {
       /// We're saving state by saving an event
@@ -37,6 +37,7 @@ public distributed actor Room: EventSourced, VirtualActor {
     } catch {
       // Retry?
       self.actorSystem.log.error("Emitting failed, reason: \(error)")
+      throw error
     }
     // after saving event—update other states
     switch message {
@@ -56,11 +57,11 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   distributed public func handleEvent(_ event: Event) {
     switch event {
-    case .user(let user, let action):
+    case .userDid(let action, let user):
       switch action {
       case .joined:
         self.state.users.insert(user)
-      case .messageSent(let message, let date):
+      case .sentMessage(let message, let date):
         self.state.messages[user, default: []].append(
           .init(
             roomId: self.state.info.id,
@@ -113,11 +114,11 @@ extension Room {
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
       case joined
-      case messageSent(String, at: Date)
+      case sentMessage(String, at: Date)
       case left
       case disconnected
     }
-    case user(UserInfo, Action)
+    case userDid(Action, info: UserInfo)
   }
   
   public enum Error: Swift.Error {

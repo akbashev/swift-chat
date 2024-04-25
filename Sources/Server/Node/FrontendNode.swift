@@ -1,6 +1,6 @@
 import HummingbirdWSCore
 import HummingbirdWebSocket
-import HummingbirdFoundation
+import Hummingbird
 import Foundation
 import Frontend
 import Backend
@@ -22,11 +22,15 @@ distributed actor FrontendNode {
     case environmentNotSet
   }
   
-  private var wsConnections: [UUID: WebsocketConnection] = [:]
-  private var wsConnectionListeningTask: Task<Void, Never>?
   let persistence: Persistence
-  
-  private lazy var app = HBApplication(
+  lazy var router = Router()
+  lazy var wsRouter = Router(context: BasicWebSocketRequestContext.self)
+  lazy var app = Application(
+    router: router,
+    server: .http1WebSocketUpgrade(
+      webSocketRouter: wsRouter,
+      configuration: .init(extensions: [])
+    ),
     configuration: .init(
       address: .hostname(
         self.actorSystem.cluster.node.host,
@@ -35,85 +39,99 @@ distributed actor FrontendNode {
       serverName: "frontend"
     )
   )
-  
+  lazy var api: RestApi = RestApi(
+    createUser: { [weak self] request in
+      guard let self else { throw Error.noConnection }
+      return try await self.createUser(request)
+    },
+    creteRoom: { [weak self] request in
+      guard let self else { throw Error.noConnection }
+      return try await self.creteRoom(request)
+    },
+    searchRoom: { [weak self] request in
+      guard let self else { throw Error.noConnection }
+      return try await self.searchRoom(request)
+    }
+  )
+    
   init(
     actorSystem: ClusterSystem
   ) async throws {
     self.actorSystem = actorSystem
+    let env = Environment()
     let config = try Self.postgresConfig(
-      host: actorSystem.cluster.node.endpoint.host
+      host: actorSystem.cluster.node.endpoint.host,
+      environment: env
     )
     self.persistence = try await Persistence(
       type: .postgres(config)
     )
-    
-    self.app.encoder = JSONEncoder()
-    self.app.decoder = JSONDecoder()
-    self.app.ws.addUpgrade()
-    self.app.ws.add(middleware: HBLogRequestsMiddleware(.info))
-    self.configure(
-      router: app.router
+    RestApi.configureRouter(
+      router: self.router,
+      using: self.api
     )
-    let events = WebsocketApi.configure(builder: app.ws)
-    self.listenForConnections(events: events)
-    try self.app.start()
+    let connectionManager = WebsocketApi.configure(
+      wsRouter: wsRouter
+    )
+    app.addServices(connectionManager)
+    try await app.runService()
   }
 }
 
 extension FrontendNode {
   
-  private func listenForConnections(events: AsyncStream<WebsocketApi.Event>) {
-    self.wsConnectionListeningTask = Task {
-      for await event in events {
-        await self.handle(event: event)
-      }
-    }
-  }
-  
-  private func handle(event: WebsocketApi.Event) async {
-    switch event {
-    case .close(let info):
-      self.closeConnectionFor(userId: info.userId)
-    case .connect(let info):
-      do {
-        let room = try await self.findRoom(with: info)
-        let userModel = try await persistence.getUser(id: info.userId)
-        // userId key won't work with mulptiple devices
-        // TODO: Create another key
-        self.wsConnections[info.userId] = try await WebsocketConnection(
-          actorSystem: self.actorSystem,
-          ws: info.ws,
-          persistence: self.persistence,
-          room: room,
-          userModel: userModel
-        )
-      } catch {
-        try? await info.ws.close()
-      }
-    }
-  }
-  
-  private func closeConnectionFor(userId: UUID) {
-    let connection = self.wsConnections[userId]
-    Task { await connection?.close() }
-    self.wsConnections[userId] = .none
-  }
-  
-  private func findRoom(
-    with info: WebsocketApi.Event.Info
-  ) async throws -> Room {
-    let roomModel = try await self.persistence.getRoom(id: info.roomId)
-    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
-      await Room(
-        actorSystem: actorSystem,
-        roomInfo: .init(
-          id: info.roomId,
-          name: roomModel.name,
-          description: roomModel.description
-        )
-      )
-    }
-  }
+//  private func listenForConnections(events: AsyncStream<WebsocketApi.Event>) {
+//    self.wsConnectionListeningTask = Task {
+//      for await event in events {
+//        await self.handle(event: event)
+//      }
+//    }
+//  }
+//  
+//  private func handle(event: WebsocketApi.Event) async {
+//    switch event {
+//    case .close(let info):
+//      self.closeConnectionFor(userId: info.userId)
+//    case .connect(let info):
+//      do {
+//        let room = try await self.findRoom(with: info)
+//        let userModel = try await persistence.getUser(id: info.userId)
+//        // userId key won't work with mulptiple devices
+//        // TODO: Create another key
+//        self.wsConnections[info.userId] = try await WebsocketConnection(
+//          actorSystem: self.actorSystem,
+//          ws: info.ws,
+//          persistence: self.persistence,
+//          room: room,
+//          userModel: userModel
+//        )
+//      } catch {
+//        try? await info.ws.close()
+//      }
+//    }
+//  }
+//  
+//  private func closeConnectionFor(userId: UUID) {
+//    let connection = self.wsConnections[userId]
+//    Task { await connection?.close() }
+//    self.wsConnections[userId] = .none
+//  }
+//  
+//  private func findRoom(
+//    with info: WebsocketApi.Event.Info
+//  ) async throws -> Room {
+//    let roomModel = try await self.persistence.getRoom(id: info.roomId)
+//    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
+//      await Room(
+//        actorSystem: actorSystem,
+//        roomInfo: .init(
+//          id: info.roomId,
+//          name: roomModel.name,
+//          description: roomModel.description
+//        )
+//      )
+//    }
+//  }
 }
 
 extension FrontendNode: Node {
@@ -137,12 +155,12 @@ extension FrontendNode: Node {
 
 extension FrontendNode {
   private static func postgresConfig(
-    host: String
+    host: String,
+    environment: Environment
   ) throws -> PostgresConnection.Configuration {
-    let env = HBEnvironment()
-    guard let username = env.get("DB_USERNAME"),
-          let password = env.get("DB_PASSWORD"),
-          let database = env.get("DB_NAME") else {
+    guard let username = environment.get("DB_USERNAME"),
+          let password = environment.get("DB_PASSWORD"),
+          let database = environment.get("DB_NAME") else {
       throw Self.Error.environmentNotSet
     }
     
@@ -158,7 +176,7 @@ extension FrontendNode {
 }
 
 /// Not quite _connection_ but will call for now.
-extension FrontendNode: RestApi {
+extension FrontendNode {
     
   distributed func createUser(_ request: Frontend.CreateUserRequest) async throws -> Frontend.UserResponse {
     let name = request.name
