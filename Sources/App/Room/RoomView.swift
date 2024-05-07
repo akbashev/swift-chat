@@ -46,7 +46,7 @@ public struct RoomView: View {
         ScrollViewReader { reader in
           ScrollView {
             LazyVStack {
-              ForEach(viewStore.messages) { response in
+              ForEach(Array(viewStore.messages.enumerated()), id: \.0) { (index, response) in
                 Group {
                   switch response.message {
                   case .join:
