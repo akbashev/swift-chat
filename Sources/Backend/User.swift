@@ -5,10 +5,14 @@ import Foundation
 public distributed actor User {
   
   public typealias ActorSystem = ClusterSystem
-  public typealias Reply = @Sendable (Output) async throws -> ()
+  public typealias Reply = @Sendable ([Output]) async throws -> ()
 
   private var state: State
   private let reply: Reply
+  
+  distributed public var info: User.Info {
+    get async throws { self.state.info }
+  }
   
   // API
   distributed public func send(message: Message, to room: Room) async throws {
@@ -24,26 +28,14 @@ public distributed actor User {
     }
   }
     
-  // Room
-  distributed func notify(_ message: User.Message, user: User, from room: Room) async throws {
-    let userInfo = try await user.getUserInfo()
-    try await self.reply(
-      Output.message(
-        .init(
-          roomId: room.getRoomInfo().id,
-          userId: userInfo.id,
-          message: message
-        ),
-        from: userInfo
-      )
-    )
+  /// Response, for performance reasone this function can already accept an array.
+  distributed func handle(response: [Output]) async throws {
+    try await self.reply(response)
   }
-  
-  distributed public func getUserInfo() -> UserInfo { self.state.info }
   
   public init(
     actorSystem: ClusterSystem,
-    userInfo: UserInfo,
+    userInfo: User.Info,
     reply: @escaping Reply
   ) {
     self.actorSystem = actorSystem
@@ -67,10 +59,33 @@ public distributed actor User {
   private func disconnect(room: Room) async throws {
     guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
     try await room.send(.disconnect, from: self)
+    self.state.rooms.remove(room)
   }
 }
 
 extension User {
+  
+  public struct Info: Sendable, Hashable, Codable, Equatable {
+    
+    public struct ID: Sendable, Hashable, Codable, Equatable, RawRepresentable {
+      public let rawValue: UUID
+      
+      public init(rawValue: UUID) {
+        self.rawValue = rawValue
+      }
+    }
+    
+    public let id: ID
+    public let name: String
+    
+    public init(
+      id: UUID,
+      name: String
+    ) {
+      self.id = .init(rawValue: id)
+      self.name = name
+    }
+  }
   
   public enum Message: Sendable, Codable, Equatable {
     case join
@@ -84,11 +99,11 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(MessageInfo, from: UserInfo)
+    case message(MessageInfo)
   }
 
   private struct State: Equatable {
     var rooms: Set<Room> = .init()
-    let info: UserInfo
+    let info: User.Info
   }
 }

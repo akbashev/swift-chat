@@ -1,184 +1,203 @@
 import HummingbirdWSCore
 import HummingbirdWebSocket
-import HummingbirdFoundation
+import Hummingbird
 import Foundation
 import Frontend
 import Backend
 import Persistence
 import DistributedCluster
 import PostgresNIO
+import ServiceLifecycle
 
-actor WebsocketConnection {
-
-  let room: Room
-
-  private let persistence: Persistence
-  private let userInfo: UserInfo
-  private let user: User
-  private let ws: WebsocketApi.WebSocket
-  private var listeningTask: Task<Void, Error>?
+actor WebsocketConnection: WebsocketApi.ConnectionManager {
   
-  init(
+  let outboundCounnections: OutboundConnections
+  let connectionStream: AsyncStream<WebsocketApi.Connection>
+  let connectionContinuation: AsyncStream<WebsocketApi.Connection>.Continuation
+  let logger: Logger
+  
+  public init(
     actorSystem: ClusterSystem,
-    ws: WebsocketApi.WebSocket,
     persistence: Persistence,
-    room: Room,
-    userModel: UserModel
-  ) async throws {
-    self.persistence = persistence
-    self.room = room
-    let userInfo = UserInfo(
-      id: userModel.id,
-      name: userModel.name
-    )
-    self.userInfo = userInfo
-    self.ws = ws
-    self.user = User(
+    logger: Logger = Logger(label: "WebSocketConnection")
+  ) {
+    self.logger = logger
+    (self.connectionStream, self.connectionContinuation) = AsyncStream<WebsocketApi.Connection>.makeStream()
+    self.outboundCounnections = OutboundConnections(
       actorSystem: actorSystem,
-      userInfo: userInfo,
-      reply: { output in
-        /// Start listening for messages from other users
-        switch output {
-        case let .message(message, userInfo):
-          let response = ChatResponse(
-            user: .init(userInfo),
-            message: .init(message.message)
-          )
-          ws.write([response])
-        }
-      }
+      persistence: persistence
     )
-    try await self.start(ws: ws)
   }
   
-  func start(ws: WebsocketApi.WebSocket) async throws {
-    await self.sendOldMessages()
-    try await self.join()
-    self.listeningTask = Task {
-      /// Join to the Room and start sending user messages
-      await self.listenFor(messages: ws.read)
-    }
-  }
-  
-  func close() {
-    self.listeningTask?.cancel()
-    self.listeningTask = .none
-    Task { [weak self] in
-      guard let self else { return }
-      _ = try? await self.user.send(message: .disconnect, to: self.room)
-      try? await self.ws.close()
-    }
-  }
-  
-  // Fetch all current room messages
-  // TODO: Move logic to room?
-  private func sendOldMessages() async {
-    let messages = (try? await room.getMessages()) ?? [:]
-    let responses = messages
-      .reduce(into: [ChatResponse](), { partialResult, value in
-        let (key, messages) = value
-        for message in messages {
-          partialResult.append(
-            ChatResponse(
-              user: .init(key),
-              message: .init(message.message)
+  func run() async {
+    await withGracefulShutdownHandler {
+      await withDiscardingTaskGroup { group in
+        for await connection in self.connectionStream {
+          group.addTask {
+            self.logger.info(
+              "add connection",
+              metadata: [
+                "userId": .string(connection.info.userId.uuidString),
+                "roomId": .string(connection.info.roomId.uuidString)
+              ]
             )
-          )
+            
+            do {
+              try await self.outboundCounnections.add(
+                connection: connection
+              )
+              for try await input in connection.inbound.messages(maxSize: 1_000_000) {
+                try await self.outboundCounnections.handle(input, from: connection)
+              }
+            } catch {
+              self.logger.log(level: .error, .init(stringLiteral: error.localizedDescription))
+            }
+            
+            self.logger.info(
+              "remove connection",
+              metadata: [
+                "userId": .string(connection.info.userId.uuidString),
+                "roomId": .string(connection.info.roomId.uuidString)
+              ]
+            )
+            try? await self.outboundCounnections.remove(
+              connection: connection
+            )
+            connection.outbound.finish()
+          }
         }
+        group.cancelAll()
       }
-    )
-    self.send(messages: responses)
-  }
-  
-  private func join() async throws {
-    try await user.send(message: .join, to: room)
-    let message = try await MessageInfo(
-      roomId: room.getRoomInfo().id,
-      userId: self.userInfo.id,
-      message: .join
-    )
-    self.send(
-      message: ChatResponse(
-        user: .init(self.userInfo),
-        message: .init(message.message)
-      )
-    )
-  }
-  
-  private func listenFor(
-    messages: AsyncStream<WebsocketApi.WebSocket.Message>
-  ) async {
-    for await message in messages {
-      guard !Task.isCancelled else {
-        self.close()
-        return
-      }
-      do {
-        try await self.handle(message: message)
-      } catch {
-        self.close()
-      }
+    } onGracefulShutdown: {
+      self.connectionContinuation.finish()
     }
+  }
+  
+  func add(
+    info: WebsocketApi.Connection.Info,
+    inbound: WebSocketInboundStream,
+    outbound: WebSocketOutboundWriter
+  ) -> WebsocketApi.ConnectionManager.OutputStream {
+    let outputStream = WebsocketApi.ConnectionManager.OutputStream()
+    let connection = WebsocketApi.Connection(info: info, inbound: inbound, outbound: outputStream)
+    self.connectionContinuation.yield(connection)
+    return outputStream
   }
 }
 
-extension WebsocketConnection {
-  private func handle(
-    message: WebsocketApi.WebSocket.Message
+actor OutboundConnections {
+  
+  let actorSystem: ClusterSystem
+  let persistence: Persistence
+  var outboundWriters: [WebsocketApi.Connection.Info: (User, Room)] = [:]
+  
+  func add(
+    connection: WebsocketApi.Connection
   ) async throws {
+    guard self.outboundWriters[connection.info] == nil else { return }
+    let room = try await self.findRoom(with: connection.info)
+    let userModel = try await persistence.getUser(id: connection.info.userId)
+    let user: User = User(
+      actorSystem: self.actorSystem,
+      userInfo: .init(
+        id: userModel.id,
+        name: userModel.name
+      ),
+      reply: { messages in
+        let response: [ChatResponse] = messages.map { (output: User.Output) -> ChatResponse in
+          switch output {
+          case let .message(messageInfo):
+            return ChatResponse(
+              user: .init(messageInfo.userInfo),
+              message: .init(messageInfo.message)
+            )
+          }
+        }
+        var data = ByteBuffer()
+        _ = try? data.writeJSONEncodable(response)
+        await connection.outbound.send(.binary(data))
+      }
+    )
+    try await user.send(message: .join, to: room)
+    self.outboundWriters[connection.info] = (user, room)
+  }
+  
+  func remove(
+    connection: WebsocketApi.Connection
+  ) async throws {
+    guard let (user, room) = self.outboundWriters[connection.info] else { return }
+    try await user.send(message: .leave, to: room)
+    self.outboundWriters.removeValue(forKey: connection.info)
+  }
+  
+  func handle(
+    _ message: WebSocketMessage,
+    from connection: WebsocketApi.Connection
+  ) async throws {
+    guard let (user, room) = self.outboundWriters[connection.info] else { return }
     switch message {
     case .text(let string):
       let createdAt = Date()
       try await user.send(
         message: .message(string, at: createdAt),
-        to: self.room
+        to: room
       )
-      try await self.send(
-        response: MessageInfo(
-          roomId: self.room.getRoomInfo().id,
-          userId: self.userInfo.id,
+      var data = ByteBuffer()
+      _ = try? await data.writeJSONEncodable(
+        MessageInfo(
+          roomInfo: room.info,
+          userInfo: user.info,
           message: .message(string, at: createdAt)
         )
       )
-      break
-    case .response(let messages):
+      await connection.outbound.send(.binary(data))
+    case .binary(var data):
+      guard let messages = try? data.readJSONDecodable(
+        [ChatResponse.Message].self,
+        length: data.readableBytes
+      ) else { break }
+      var response: [ChatResponse] = []
       for message in messages {
         try await user.send(
           message: .init(message),
-          to: self.room
+          to: room
         )
-        try await self.send(
-          response: MessageInfo(
-            roomId: self.room.getRoomInfo().id,
-            userId: self.userInfo.id,
-            message: .init(message)
+        try? await response.append(
+          ChatResponse(
+            user: .init(user.info),
+            room: .init(room.info),
+            message: message
           )
         )
       }
+      var data = ByteBuffer()
+      _ = try data.writeJSONEncodable(response)
+      await connection.outbound.send(.binary(data))
     }
   }
   
-  private func send(response: MessageInfo) {
-    self.send(responses: [response])
-  }
-  
-  private func send(responses: [MessageInfo]) {
-    self.send(
-      messages: responses.map {
-        ChatResponse(
-          user: .init(self.userInfo),
-          message: .init($0.message)
+  private func findRoom(
+    with info: WebsocketApi.Connection.Info
+  ) async throws -> Room {
+    let roomModel = try await self.persistence.getRoom(id: info.roomId)
+    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
+      await Room(
+        actorSystem: actorSystem,
+        roomInfo: .init(
+          id: info.roomId,
+          name: roomModel.name,
+          description: roomModel.description
         )
-      }
-    )
+      )
+    }
   }
   
-  private func send(message: ChatResponse) {
-    self.send(messages: [message])
-  }
-  
-  private func send(messages: [ChatResponse]) {
-    self.ws.write(messages)
+  init(
+    actorSystem: ClusterSystem,
+    persistence: Persistence
+  ) {
+    self.actorSystem = actorSystem
+    self.persistence = persistence
   }
 }
 
@@ -205,7 +224,7 @@ fileprivate extension User.Message {
 }
 
 fileprivate extension UserResponse {
-  init(_ userInfo: UserInfo) {
+  init(_ userInfo: User.Info) {
     self.init(
       id: userInfo.id.rawValue,
       name: userInfo.name
@@ -224,7 +243,7 @@ fileprivate extension UserResponse {
 
 
 fileprivate extension RoomResponse {
-  init(_ roomInfo: RoomInfo) {
+  init(_ roomInfo: Room.Info) {
     self.init(
       id: roomInfo.id.rawValue,
       name: roomInfo.name,
