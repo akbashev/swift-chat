@@ -47,9 +47,6 @@ public enum WebsocketApi {
     wsRouter: Router<BasicWebSocketRequestContext>,
     connectionManager: ConnectionManager
   ) {
-//    var logger = Logger(label: "WebSocketChat")
-//    logger.logLevel = .trace
-    // Separate router for websocket upgrade
     wsRouter.middlewares.add(LogRequestsMiddleware(.debug))
     wsRouter.ws(
       "/chat",
@@ -64,9 +61,11 @@ public enum WebsocketApi {
       },
       onUpgrade: { inbound, outbound, context in
         guard
-          let userId: UUID = context.request.uri.queryParameters["user_id"]
+          let userId: UUID = context.request.uri
+            .queryParameters["user_id"]
             .flatMap(UUID.init(uuidSubtring:)),
-          let roomId: UUID = context.request.uri.queryParameters["room_id"]
+          let roomId: UUID = context.request.uri
+            .queryParameters["room_id"]
             .flatMap(UUID.init(uuidSubtring:))
         else {
           return
@@ -83,36 +82,6 @@ public enum WebsocketApi {
     )
   }
 }
-
-//extension WebsocketApi.WebSocket {
-//  init(_ ws: WebSocketCl) {
-//    self.close = { [weak ws] in
-//      try await ws?.close()
-//    }
-//    self.write = { [weak ws] messages in
-//      var data = ByteBuffer()
-//      _ = try? data.writeJSONEncodable(messages)
-//      _ = ws?.write(.binary(data))
-//    }
-//    self.read = .init { continuation in
-//      /// Quickly checked and see *.map()* for AsyncSequence, but don't get a bit how to use it 🤔
-//      Task {
-//        for await message in ws.readStream() {
-//          switch message {
-//          case .text(let string):
-//            continuation.yield(.text(string))
-//          case .binary(var data):
-//            guard let messages = try? data.readJSONDecodable(
-//              [ChatResponse.Message].self,
-//              length: data.readableBytes
-//            ) else { break }
-//            continuation.yield(.response(messages))
-//          }
-//        }
-//      }
-//    }
-//  }
-//}
 
 extension UUID {
   init?(uuidSubtring: Substring) {

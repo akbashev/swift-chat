@@ -140,13 +140,13 @@ actor OutboundConnections {
   
   let actorSystem: ClusterSystem
   let persistence: Persistence
-  var outboundWriters: [WebsocketApi.Connection.Info: (User, Room, WebsocketApi.ConnectionManager.OutputStream)] = [:]
+  var outboundWriters: [WebsocketApi.Connection.Info: (User, Room)] = [:]
 
   func handle(
     _ message: WebSocketMessage,
     from connection: WebsocketApi.Connection
   ) async throws {
-    guard let (user, room, outbound) = self.outboundWriters[connection.info] else { return }
+    guard let (user, room) = self.outboundWriters[connection.info] else { return }
     switch message {
     case .text(let string):
       let createdAt = Date()
@@ -162,7 +162,7 @@ actor OutboundConnections {
           message: .message(string, at: createdAt)
         )
       )
-      await outbound.send(.binary(data))
+      await connection.outbound.send(.binary(data))
     case .binary(var data):
       guard let messages = try? data.readJSONDecodable(
         [ChatResponse.Message].self,
@@ -175,13 +175,15 @@ actor OutboundConnections {
         )
         var data = ByteBuffer()
         _ = try? await data.writeJSONEncodable(
-          MessageInfo(
-            roomInfo: room.info,
-            userInfo: user.info,
-            message: .init(message)
-          )
+          [
+            ChatResponse(
+              user: .init(user.info),
+              room: .init(room.info),
+              message: message
+            )
+          ]
         )
-        await outbound.send(.binary(data))
+        await connection.outbound.send(.binary(data))
       }
     }
   }
@@ -213,13 +215,13 @@ actor OutboundConnections {
       }
     )
     try await user.send(message: .join, to: room)
-    self.outboundWriters[connection.info] = (user, room, connection.outbound)
+    self.outboundWriters[connection.info] = (user, room)
   }
   
   func remove(
     connection: WebsocketApi.Connection
   ) async throws {
-    guard let (user, room, outbound) = self.outboundWriters[connection.info] else { return }
+    guard let (user, room) = self.outboundWriters[connection.info] else { return }
     try await user.send(message: .leave, to: room)
     self.outboundWriters.removeValue(forKey: connection.info)
   }
