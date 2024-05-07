@@ -5,7 +5,7 @@ import Foundation
 public distributed actor User {
   
   public typealias ActorSystem = ClusterSystem
-  public typealias Reply = @Sendable (Output) async throws -> ()
+  public typealias Reply = @Sendable ([Output]) async throws -> ()
 
   private var state: State
   private let reply: Reply
@@ -28,19 +28,9 @@ public distributed actor User {
     }
   }
     
-  // Room
-  distributed func notify(_ message: User.Message, user: User, from room: Room) async throws {
-    let userInfo = try await user.info
-    try await self.reply(
-      Output.message(
-        .init(
-          roomId: room.info.id,
-          userId: userInfo.id,
-          message: message
-        ),
-        from: userInfo
-      )
-    )
+  /// Response, for performance reasone this function can already accept an array.
+  distributed func handle(response: [Output]) async throws {
+    try await self.reply(response)
   }
   
   public init(
@@ -69,6 +59,7 @@ public distributed actor User {
   private func disconnect(room: Room) async throws {
     guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
     try await room.send(.disconnect, from: self)
+    self.state.rooms.remove(room)
   }
 }
 
@@ -108,7 +99,7 @@ extension User {
   }
   
   public enum Output: Codable, Sendable {
-    case message(MessageInfo, from: User.Info)
+    case message(MessageInfo)
   }
 
   private struct State: Equatable {

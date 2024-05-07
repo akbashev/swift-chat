@@ -3,23 +3,52 @@ import Foundation
 import HummingbirdWebSocket
 import HummingbirdWSCore
 import Logging
+import AsyncAlgorithms
+import ServiceLifecycle
 
 public enum WebsocketApi {
   
-  public struct WebSocket {
-    public enum Message {
-      case text(String)
-      case response([ChatResponse.Message])
-    }
-    public let write: ([ChatResponse]) -> ()
-    public let close: () async throws -> ()
-    public let read: AsyncStream<Message>
+  public protocol ConnectionManager: Service {
+    typealias OutputStream = AsyncChannel<WebSocketOutboundWriter.OutboundFrame>
+
+    func add(
+      info: Connection.Info,
+      inbound: WebSocketInboundStream,
+      outbound: WebSocketOutboundWriter
+    ) async throws -> OutputStream
   }
   
-  public static func configure(wsRouter: Router<BasicWebSocketRequestContext>) -> ConnectionManager {
-    var logger = Logger(label: "WebSocketChat")
-    logger.logLevel = .trace
-    let connectionManager = ConnectionManager(logger: logger)
+  public struct Connection: Sendable {
+    public struct Info: Hashable, Sendable {
+      public let userId: UUID
+      public let roomId: UUID
+      
+      public var description: String {
+        "User \(self.userId.uuidString), Room \(self.roomId.uuidString)"
+      }
+    }
+    
+    public let info: Info
+    public let inbound: WebSocketInboundStream
+    public let outbound: ConnectionManager.OutputStream
+    
+    public init(
+      info: Info,
+      inbound: WebSocketInboundStream,
+      outbound: ConnectionManager.OutputStream
+    ) {
+      self.info = info
+      self.inbound = inbound
+      self.outbound = outbound
+    }
+  }
+  
+  public static func configure(
+    wsRouter: Router<BasicWebSocketRequestContext>,
+    connectionManager: ConnectionManager
+  ) {
+//    var logger = Logger(label: "WebSocketChat")
+//    logger.logLevel = .trace
     // Separate router for websocket upgrade
     wsRouter.middlewares.add(LogRequestsMiddleware(.debug))
     wsRouter.ws(
@@ -40,10 +69,9 @@ public enum WebsocketApi {
           let roomId: UUID = context.request.uri.queryParameters["room_id"]
             .flatMap(UUID.init(uuidSubtring:))
         else {
-//            try await ws.close()
           return
         }
-        let outputStream = connectionManager.add(
+        let outputStream = try await connectionManager.add(
           info: .init(userId: userId, roomId: roomId),
           inbound: inbound,
           outbound: outbound
@@ -53,7 +81,6 @@ public enum WebsocketApi {
         }
       }
     )
-    return connectionManager
   }
 }
 

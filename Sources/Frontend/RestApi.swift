@@ -19,7 +19,7 @@ public struct RestApi {
 }
 
 public extension RestApi {
-  static func configureRouter(
+  static func configure(
     router: Router<BasicRequestContext>,
     using api: RestApi
   ) {

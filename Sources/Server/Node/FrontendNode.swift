@@ -23,6 +23,7 @@ distributed actor FrontendNode {
   }
   
   let persistence: Persistence
+  let connectionManager: WebsocketConnection
   lazy var router = Router()
   lazy var wsRouter = Router(context: BasicWebSocketRequestContext.self)
   lazy var app = Application(
@@ -53,7 +54,7 @@ distributed actor FrontendNode {
       return try await self.searchRoom(request)
     }
   )
-    
+  
   init(
     actorSystem: ClusterSystem
   ) async throws {
@@ -66,72 +67,21 @@ distributed actor FrontendNode {
     self.persistence = try await Persistence(
       type: .postgres(config)
     )
-    RestApi.configureRouter(
+    self.connectionManager = WebsocketConnection(
+      actorSystem: actorSystem,
+      persistence: self.persistence
+    )
+    RestApi.configure(
       router: self.router,
       using: self.api
     )
-    let connectionManager = WebsocketApi.configure(
-      wsRouter: wsRouter
+    WebsocketApi.configure(
+      wsRouter: self.wsRouter,
+      connectionManager: self.connectionManager
     )
-    app.addServices(connectionManager)
-    try await app.runService()
+    self.app.addServices(self.connectionManager)
+    try await self.app.runService()
   }
-}
-
-extension FrontendNode {
-  
-//  private func listenForConnections(events: AsyncStream<WebsocketApi.Event>) {
-//    self.wsConnectionListeningTask = Task {
-//      for await event in events {
-//        await self.handle(event: event)
-//      }
-//    }
-//  }
-//  
-//  private func handle(event: WebsocketApi.Event) async {
-//    switch event {
-//    case .close(let info):
-//      self.closeConnectionFor(userId: info.userId)
-//    case .connect(let info):
-//      do {
-//        let room = try await self.findRoom(with: info)
-//        let userModel = try await persistence.getUser(id: info.userId)
-//        // userId key won't work with mulptiple devices
-//        // TODO: Create another key
-//        self.wsConnections[info.userId] = try await WebsocketConnection(
-//          actorSystem: self.actorSystem,
-//          ws: info.ws,
-//          persistence: self.persistence,
-//          room: room,
-//          userModel: userModel
-//        )
-//      } catch {
-//        try? await info.ws.close()
-//      }
-//    }
-//  }
-//  
-//  private func closeConnectionFor(userId: UUID) {
-//    let connection = self.wsConnections[userId]
-//    Task { await connection?.close() }
-//    self.wsConnections[userId] = .none
-//  }
-//  
-//  private func findRoom(
-//    with info: WebsocketApi.Event.Info
-//  ) async throws -> Room {
-//    let roomModel = try await self.persistence.getRoom(id: info.roomId)
-//    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
-//      await Room(
-//        actorSystem: actorSystem,
-//        roomInfo: .init(
-//          id: info.roomId,
-//          name: roomModel.name,
-//          description: roomModel.description
-//        )
-//      )
-//    }
-//  }
 }
 
 extension FrontendNode: Node {
@@ -177,8 +127,10 @@ extension FrontendNode {
 
 /// Not quite _connection_ but will call for now.
 extension FrontendNode {
-    
-  distributed func createUser(_ request: Frontend.CreateUserRequest) async throws -> Frontend.UserResponse {
+  
+  distributed func createUser(
+    _ request: Frontend.CreateUserRequest
+  ) async throws -> Frontend.UserResponse {
     let name = request.name
     let id = UUID()
     try await persistence.create(
@@ -196,7 +148,9 @@ extension FrontendNode {
     )
   }
   
-  distributed func creteRoom(_ request: Frontend.CreateRoomRequest) async throws -> Frontend.RoomResponse {
+  distributed func creteRoom(
+    _ request: Frontend.CreateRoomRequest
+  ) async throws -> Frontend.RoomResponse {
     let id = UUID()
     let name = request.name
     let description = request.description
@@ -217,7 +171,9 @@ extension FrontendNode {
     )
   }
   
-  distributed func searchRoom(_ request: Frontend.SearchRoomRequest) async throws -> [Frontend.RoomResponse] {
+  distributed func searchRoom(
+    _ request: Frontend.SearchRoomRequest
+  ) async throws -> [Frontend.RoomResponse] {
     try await persistence
       .searchRoom(query: request.query)
       .map {

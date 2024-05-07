@@ -6,35 +6,22 @@ import VirtualActor
 import EventSourcing
 
 public distributed actor Room: EventSourced, VirtualActor {
+  
   public typealias ActorSystem = ClusterSystem
-  public typealias Command = Message
     
   @ActorID.Metadata(\.persistenceID)
   var persistenceId: PersistenceID
 
   private var state: State
-  private var users: Set<User> = .init()
   
   distributed public var info: Room.Info {
     get async throws { self.state.info }
   }
   
-  distributed public var userMessages: [User.Info: [MessageInfo]] {
-    get async throws { self.state.messages }
-  }
-  
   distributed func send(_ message: User.Message, from user: User) async throws {
     let userInfo = try await user.info
-    let event: Event = switch message {
-    case .join:
-        .userDid(.joined, info: userInfo)
-    case .message(let chatMessage, let date):
-        .userDid(.sentMessage(chatMessage, at: date), info: userInfo)
-    case .leave:
-        .userDid(.left, info: userInfo)
-    case .disconnect:
-        .userDid(.disconnected, info: userInfo)
-    }
+    let action = Event.Action(message)
+    let event = Event.userDid(action, info: userInfo)
     do {
       /// We're saving state by saving an event
       /// Emit function also calls `handleEvent(_:)` internally, so will update state
@@ -48,10 +35,12 @@ public distributed actor Room: EventSourced, VirtualActor {
     // after saving event—update other states
     switch message {
     case .join:
-      self.users.insert(user)
+      // Fetch all current room messages and send to user
+      await self.sendCurrentMessagesTo(user: user)
+      self.state.users.insert(user)
     case .leave,
         .disconnect:
-      self.users.remove(user)
+      self.state.users.remove(user)
     default:
       break
     }
@@ -63,22 +52,14 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   distributed public func handleEvent(_ event: Event) {
     switch event {
-    case .userDid(let action, let user):
-      switch action {
-      case .joined:
-        self.state.users.insert(user)
-      case .sentMessage(let message, let date):
-        self.state.messages[user, default: []].append(
-          .init(
-            roomId: self.state.info.id,
-            userId: user.id,
-            message: .message(message, at: date)
-          )
+    case .userDid(let action, let userInfo):
+      self.state.messages.append(
+        .init(
+          roomInfo: self.state.info,
+          userInfo: userInfo,
+          message: .init(action)
         )
-      case .left,
-          .disconnected:
-        self.state.users.remove(user)
-      }
+      )
     }
   }
   
@@ -87,16 +68,34 @@ public distributed actor Room: EventSourced, VirtualActor {
     roomInfo: Room.Info
   ) async {
     self.actorSystem = actorSystem
-    self.state = .init(info: roomInfo, users: [], messages: [:])
+    self.state = .init(info: roomInfo)
     let roomId = roomInfo.id.rawValue.uuidString
     self.persistenceId = roomId
   }
   
+  private func sendCurrentMessagesTo(user: User) async {
+    try? await user.handle(
+      response: self.state
+        .messages
+        .map { .message($0) }
+    )
+  }
+  
   private func notifyOthersAbout(message: User.Message, from user: User) async {
     await withTaskGroup(of: Void.self) { group in
-      for other in self.users where user.id != other.id {
+      for other in self.state.users where user.id != other.id {
         group.addTask {
-          try? await other.notify(message, user: user, from: self)
+          try? await other.handle(
+            response: [
+              .message(
+                .init(
+                  roomInfo: self.state.info,
+                  userInfo: user.info,
+                  message: message
+                )
+              ),
+            ]
+          )
         }
       }
     }
@@ -130,10 +129,6 @@ extension Room {
     }
   }
   
-  public enum Message: Sendable, Codable, Equatable {
-    case fromUser(User.Info, content: User.Message)
-  }
-  
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
       case joined
@@ -150,17 +145,43 @@ extension Room {
 
   public struct State: Sendable, Codable, Equatable {
     let info: Room.Info
-    var users: Set<User.Info> = .init()
-    var messages: [User.Info: [MessageInfo]] = [:]
+    var users: Set<User> = .init()
+    var messages: [MessageInfo] = []
     
     public init(
-      info: Room.Info,
-      users: Set<User.Info>,
-      messages: [User.Info: [MessageInfo]]
+      info: Room.Info
     ) {
       self.info = info
-      self.users = users
-      self.messages = messages
+    }
+  }
+}
+
+extension User.Message {
+  init(_ action: Room.Event.Action) {
+    self = switch action {
+    case .sentMessage(let message, let date):
+        .message(message, at: date)
+    case .left:
+        .leave
+    case .disconnected:
+        .disconnect
+    case .joined:
+        .join
+    }
+  }
+}
+
+extension Room.Event.Action {
+  init(_ message: User.Message) {
+    self = switch message {
+    case let .message(message, date):
+        .sentMessage(message, at: date)
+    case .leave:
+        .left
+    case .disconnect:
+        .disconnected
+    case .join:
+        .joined
     }
   }
 }

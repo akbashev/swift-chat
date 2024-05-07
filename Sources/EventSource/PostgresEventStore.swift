@@ -3,20 +3,33 @@ import PostgresNIO
 import NIOCore
 import EventSourcing
 
-public class PostgresEventStore: EventStore {
+public actor PostgresEventStore: EventStore {
+  
+  struct PersistenceTaskId: Hashable, Identifiable, Equatable {
+    let buffer: ByteBuffer
+    let id: Int
+  }
   
   private let connection: PostgresConnection
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
+  private var persistTasks: [PersistenceTaskId: Task<Void, any Error>] = [:]
 
   public func persistEvent<Event: Codable>(_ event: Event, id: PersistenceID) async throws {
-    let data = try encoder.encode(event)
     let nextSequenceNumber = try await self.nextSequenceNumber(for: id)
+    let data = try encoder.encode(event)
     let buffer = ByteBufferAllocator().buffer(data: data)
-    try await connection.query(
-      "INSERT INTO events (persistence_id, sequence_number, event) VALUES (\(id), \(nextSequenceNumber), \(buffer))",
-      logger: connection.logger
-    )
+    let persistenceTaskId = PersistenceTaskId(buffer: buffer, id: nextSequenceNumber)
+    guard persistTasks[persistenceTaskId] == .none else {
+      return
+    }
+    self.persistTasks[persistenceTaskId] = Task {
+      defer { self.persistTasks.removeValue(forKey: persistenceTaskId) }
+      try await connection.query(
+        "INSERT INTO events (persistence_id, sequence_number, event) VALUES (\(id), \(nextSequenceNumber), \(buffer))",
+        logger: connection.logger
+      )
+    }
   }
   
   public func eventsFor<Event: Codable>(id: PersistenceID) async throws -> [Event] {

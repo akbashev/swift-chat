@@ -1,0 +1,28 @@
+{
+    "configurations": [
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:swift-chat}",
+            "name": "Debug Server",
+            "program": "${workspaceFolder:swift-chat}/.build/debug/Server",
+            "preLaunchTask": "swift: Build Debug Server"
+        },
+        {
+            "type": "lldb",
+            "request": "launch",
+            "sourceLanguages": [
+                "swift"
+            ],
+            "args": [],
+            "cwd": "${workspaceFolder:swift-chat}",
+            "name": "Release Server",
+            "program": "${workspaceFolder:swift-chat}/.build/release/Server",
+            "preLaunchTask": "swift: Build Release Server"
+        }
+    ]
+}
