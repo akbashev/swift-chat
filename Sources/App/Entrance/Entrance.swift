@@ -1,16 +1,52 @@
 import SwiftUI
 import ComposableArchitecture
 
+@Reducer
 public struct Entrance: Reducer {
   
   @Dependency(\.userDefaults) var userDefaults
   @Dependency(\.apiClient) var apiClient
   
-  public struct State: Equatable {
+  @ObservableState
+  public struct State {
     
-    @BindingState var sheet: Entrance.State.Navigation.SheetRoute?
-    @BindingState var query: String = ""
-    @PresentationState var room: Room.State?
+    enum Navigation: Equatable, Identifiable {
+      enum SheetRoute: Equatable, Identifiable {
+        case createUser
+        case createRoom
+        
+        public var id: String {
+          switch self {
+          case .createUser: "createUser"
+          case .createRoom: "createRoom"
+          }
+        }
+      }
+      
+      enum PopoverRoute: Equatable, Identifiable {
+        case error(String)
+        
+        public var id: String {
+          switch self {
+          case .error(let description): description
+          }
+        }
+      }
+      
+      case sheet(SheetRoute)
+      case popover(PopoverRoute)
+      
+      var id: String {
+        switch self {
+        case .sheet(let route): "sheet_\(route.id)"
+        case .popover(let route): "popover_\(route.id)"
+        }
+      }
+    }
+    
+    var sheet: Entrance.State.Navigation.SheetRoute?
+    var query: String = ""
+    @Presents var room: Room.State?
     var rooms: [RoomResponse] = []
     var isLoading: Bool = false
     
@@ -112,7 +148,7 @@ public struct Entrance: Reducer {
         state.rooms = (try? result.value) ?? []
         state.isLoading = false
         return .none
-      case .binding(\.$query):
+      case .binding(\.query):
         guard !state.query.isEmpty else {
           state.rooms = []
           return .none
@@ -136,42 +172,6 @@ public struct Entrance: Reducer {
   }
   
   public init() {}
-}
-
-extension Entrance.State {
-  enum Navigation: Equatable, Identifiable {
-    enum SheetRoute: Equatable, Identifiable {
-      case createUser
-      case createRoom
-      
-      public var id: String {
-        switch self {
-        case .createUser: "createUser"
-        case .createRoom: "createRoom"
-        }
-      }
-    }
-    
-    enum PopoverRoute: Equatable, Identifiable {
-      case error(String)
-      
-      public var id: String {
-        switch self {
-        case .error(let description): description
-        }
-      }
-    }
-    
-    case sheet(SheetRoute)
-    case popover(PopoverRoute)
-    
-    var id: String {
-      switch self {
-      case .sheet(let route): "sheet_\(route.id)"
-      case .popover(let route): "popover_\(route.id)"
-      }
-    }
-  }
 }
 
 extension RoomResponse: Identifiable {}

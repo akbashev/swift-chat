@@ -2,22 +2,35 @@ import ComposableArchitecture
 import Dependencies
 import Foundation
 
-public struct Room: Reducer {
+@Reducer
+public struct Room {
   
   @Dependency(\.continuousClock) var clock
   @Dependency(\.webSocket) var webSocket
   
+  @ObservableState
   public struct State: Equatable {
     
-    @PresentationState var alert: AlertState<Action.Alert>?
-    @BindingState var message: String = ""
-    @BindingState var isSending: Bool = false
+    var alert: AlertState<Action.Alert>?
+    var message: String = ""
+    var isSending: Bool = false
     
     let room: RoomResponse
     let user: UserResponse
     
     var connectivityState = ConnectivityState.disconnected
     var messagesToSend: [Message] = []
+    var messagesToSendTexts: [String] {
+      self.messagesToSend
+        .compactMap { message in
+          switch message {
+          case .message(let text, _):
+            text
+          default: 
+              .none
+          }
+        }
+    }
     var receivedMessages: [MessageResponse] = []
     
     public enum ConnectivityState: String {
@@ -189,6 +202,6 @@ public struct Room: Reducer {
         return .none
       }
     }
-    .ifLet(\.$alert, action: /Action.alert)
+    .ifLet(\.alert, action: /Action.alert)
   }
 }

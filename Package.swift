@@ -23,8 +23,8 @@ var package = Package(
     // Vapor
     .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.18.0"),
     // Pointfree.co
-    .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.0.0"),
-    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.0.0"),
+    .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.10.0"),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies", from: "1.3.0"),
   ],
   targets: [
     .target(

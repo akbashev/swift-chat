@@ -5,92 +5,67 @@ import Foundation
 // MARK: - Feature view
 
 public struct EntranceView: View {
-  let store: StoreOf<Entrance>
+  @Bindable var store: StoreOf<Entrance>
   
   public init(store: StoreOf<Entrance>) {
     self.store = store
   }
   
-  struct ViewState: Equatable {
-    @BindingViewState var sheet: Entrance.State.Navigation.SheetRoute?
-    @BindingViewState var query: String
-    var rooms: [RoomResponse]
-    var isLoading: Bool
-  }
-  
   public var body: some View {
-    WithViewStore(
-      self.store,
-      observe: {
-        ViewState(
-          sheet: $0.$sheet,
-          query: $0.$query,
-          rooms: $0.rooms,
-          isLoading: $0.isLoading
-        )
-      }
-    ) { viewStore in
-      ScrollView {
-        LazyVStack {
-          ForEach(viewStore.rooms) { room in
-            VStack(alignment: .leading) {
-              Text(room.name)
-                .font(.headline)
-              room.description.map {
-                Text($0)
-              }
-              Divider()
-            }
-            .frame(maxWidth: .infinity)
-            .onTapGesture {
-              viewStore.send(.selectRoom(room))
-            }
+    ScrollView {
+      LazyVStack {
+        ForEach(store.rooms) { room in
+          RoomItemView(
+            name: room.name,
+            description: room.description
+          ) {
+            store.send(.selectRoom(room))
           }
         }
-        .padding()
       }
-      .searchable(text: viewStore.$query)
-      .overlay {
-        if viewStore.isLoading {
-          ProgressView()
+      .padding()
+    }
+    .searchable(text: $store.query)
+    .overlay {
+      if store.isLoading {
+        ProgressView()
+      }
+    }
+    .onAppear {
+      store.send(.onAppear)
+    }
+    .sheet(
+      item: $store.sheet
+    ) { route in
+      RouteView(
+        route: route,
+        createUser: {
+          store.send(.createUser($0))
+        },
+        createRoom: {
+          store.send(.createRoom($0, $1))
         }
-      }
-      .onAppear {
-        viewStore.send(.onAppear)
-      }
-      .sheet(
-        item: viewStore.$sheet
-      ) { route in
-        RouteView(
-          route: route,
-          createUser: {
-            viewStore.send(.createUser($0))
-          },
-          createRoom: {
-            viewStore.send(.createRoom($0, $1))
-          }
-        )
-      }
-      .navigationDestination(
-        store: self.store.scope(
-          state: \.$room, action: { .room($0) }
-        )
-      ) { store in
-        RoomView(store: store)
-      }
-      .toolbar {
-        ToolbarItem(
-          id: "addRoomButton",
-          placement: .automatic,
-          showsByDefault: true
-        ) {
-          Button(action: {
-            viewStore.send(.openCreateRoom, animation: .default)
-          }) {
-            Text(Image(systemName: "plus"))
-              .font(.body)
-              .foregroundColor(Color.primary)
-          }
+      )
+    }
+    /// Regular `navigationDestination(item:_)` haven't worked here.
+    // TODO: Figure out why
+    .navigationDestinationWrapper(
+      item: $store.scope(state: \.room, action: \.room)
+    ) { store in
+      RoomView(store: store)
+    }
+    .toolbar {
+      ToolbarItem(
+        id: "addRoomButton",
+        placement: .automatic,
+        showsByDefault: true
+      ) {
+        Button(action: {
+          store.send(.openCreateRoom, animation: .default)
+        }) {
+          Text(Image(systemName: "plus"))
+            .font(.body)
+            .foregroundColor(Color.primary)
         }
       }
     }
@@ -137,5 +112,54 @@ struct RouteView: View {
         }
       }
     }
+  }
+}
+
+struct RoomItemView: View {
+  
+  let name: String
+  let description: String?
+  let open: () -> ()
+  
+  var body: some View {
+    VStack(alignment: .leading) {
+      Text(name)
+        .font(.headline)
+      description.map {
+        Text($0)
+      }
+      Divider()
+    }
+    .frame(maxWidth: .infinity)
+    .onTapGesture {
+      self.open()
+    }
+  }
+}
+
+
+extension View {
+  @available(iOS, introduced: 16, deprecated: 17)
+  @available(macOS, introduced: 13, deprecated: 14)
+  @available(tvOS, introduced: 16, deprecated: 17)
+  @available(watchOS, introduced: 9, deprecated: 10)
+  @ViewBuilder
+  func navigationDestinationWrapper<D: Hashable, C: View>(
+    item: Binding<D?>,
+    @ViewBuilder destination: @escaping (D) -> C
+  ) -> some View {
+    navigationDestination(isPresented: item.isPresented) {
+      if let item = item.wrappedValue {
+        destination(item)
+      }
+    }
+  }
+}
+
+
+fileprivate extension Optional where Wrapped: Hashable {
+  var isPresented: Bool {
+    get { self != nil }
+    set { if !newValue { self = nil } }
   }
 }
