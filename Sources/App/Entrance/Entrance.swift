@@ -4,7 +4,6 @@ import ComposableArchitecture
 @Reducer
 public struct Entrance: Reducer {
   
-  @Dependency(\.userDefaults) var userDefaults
   @Dependency(\.apiClient) var apiClient
   
   @ObservableState
@@ -44,30 +43,18 @@ public struct Entrance: Reducer {
       }
     }
     
+    @Shared(.fileStorage(.user)) var user: UserResponse?
+
     var sheet: Entrance.State.Navigation.SheetRoute?
     var query: String = ""
     @Presents var room: Room.State?
     var rooms: [RoomResponse] = []
     var isLoading: Bool = false
-    
-    var showRoomView: Bool {
-      self.user != .none
-    }
-    
-    var user: UserResponse?
-    
-    public init() {
-      @Dependency(\.userDefaults) var userDefaults
-      if let data = userDefaults.dataForKey(.userInfo),
-         let user = try? JSONDecoder().decode(UserResponse.self, from: data) {
-        self.user = user
-      } else {
-        self.sheet = .createUser
-      }
-    }
+      
+    public init() {}
   }
   
-  public enum Action: BindableAction, Equatable {
+  public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
     case openCreateRoom
@@ -75,9 +62,9 @@ public struct Entrance: Reducer {
     case createUser(String)
     case createRoom(String, String?)
     case searchRoom(String)
-    case didCreateRoom(TaskResult<RoomResponse>)
-    case didCreateUser(TaskResult<UserResponse>)
-    case didSearchRoom(TaskResult<[RoomResponse]>)
+    case didCreateRoom(Result<RoomResponse, any Error>)
+    case didCreateUser(Result<UserResponse, any Error>)
+    case didSearchRoom(Result<[RoomResponse], any Error>)
     case room(PresentationAction<Room.Action>)
   }
   
@@ -90,6 +77,9 @@ public struct Entrance: Reducer {
     Reduce { state, action in
       switch action {
       case .onAppear:
+        if state.user == .none {
+          state.sheet = .createUser
+        }
         return .none
       case .selectRoom(let response):
         state.room = .init(user: state.user!, room: response)
@@ -98,7 +88,7 @@ public struct Entrance: Reducer {
         return .run { send in
           await send(
             .didCreateUser(
-              TaskResult {
+              Result {
                 try await apiClient.createUser(userName)
               }
             )
@@ -111,7 +101,7 @@ public struct Entrance: Reducer {
         return .run { send in
           await send(
             .didCreateRoom(
-              TaskResult {
+              Result {
                 try await apiClient.createRoom(name, description)
               }
             )
@@ -122,7 +112,7 @@ public struct Entrance: Reducer {
         return .run { send in
           await send(
             .didSearchRoom(
-              TaskResult {
+              Result {
                 try await apiClient.searchRoom(query)
               }
             )
@@ -131,21 +121,22 @@ public struct Entrance: Reducer {
       case let .didCreateUser(.success(user)):
         state.user = user
         state.sheet = .none
-        return .run { _ in
-          try await userDefaults.setData(JSONEncoder().encode(user), .userInfo)
-        }
-      case let .didCreateUser(.failure(error)):
+        return .none
+      case .didCreateUser(.failure):
         return .none
       case let .didCreateRoom(.success(room)):
         state.isLoading = false
         state.room = .init(user: state.user!, room: room)
         state.sheet = .none
         return .none
-      case let .didCreateRoom(.failure(error)):
+      case .didCreateRoom(.failure):
         state.isLoading = false
         return .none
-      case .didSearchRoom(let result):
-        state.rooms = (try? result.value) ?? []
+      case .didSearchRoom(.success(let rooms)):
+        state.rooms = rooms
+        state.isLoading = false
+        return .none
+      case .didSearchRoom(.failure):
         state.isLoading = false
         return .none
       case .binding(\.query):
@@ -175,3 +166,7 @@ public struct Entrance: Reducer {
 }
 
 extension RoomResponse: Identifiable {}
+
+extension URL {
+  static let user = URL.documentsDirectory.appending(component: "user.json")
+}

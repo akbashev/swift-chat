@@ -24,10 +24,8 @@ public struct Room {
       self.messagesToSend
         .compactMap { message in
           switch message {
-          case .message(let text, _):
-            text
-          default: 
-              .none
+          case .message(let text, _): text
+          default: .none
           }
         }
     }
@@ -58,16 +56,16 @@ public struct Room {
   
   public init() {}
   
-  public enum Action: BindableAction, Equatable {
+  public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
     case alert(PresentationAction<Alert>)
     case connect
     case messageToSendAdded(Message)
-    case receivedSocketMessage(TaskResult<WebSocketClient.Message>)
+    case receivedSocketMessage(Result<WebSocketClient.Message, any Error>)
     case sendButtonTapped
     case send([Message])
-    case didSend(TaskResult<Bool>)
+    case didSend(Result<Bool, any Error>)
     case webSocket(WebSocketClient.Action)
     
     public enum Alert: Equatable {}
@@ -154,7 +152,7 @@ public struct Room {
         return .run { send in
           await send(
             .didSend(
-              TaskResult {
+              Result {
                 let data = try JSONEncoder().encode(messages)
                 try await self.webSocket.send(WebSocketClient.ID(), .data(data))
                 return true

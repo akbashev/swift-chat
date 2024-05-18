@@ -40,7 +40,7 @@ public struct WebSocketClient {
   
   var open: @Sendable (ID, URL, [String]) async -> AsyncStream<Action>
   var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
-  var receive: @Sendable (ID) async throws -> AsyncStream<TaskResult<Message>>
+  var receive: @Sendable (ID) async throws -> AsyncStream<Result<Message, any Error>>
   var send: @Sendable (ID, URLSessionWebSocketTask.Message) async throws -> ()
   var sendPing: @Sendable (ID) async throws -> ()
 }
@@ -109,12 +109,12 @@ extension WebSocketClient: DependencyKey {
         try self.socket(id: id).cancel(with: closeCode, reason: reason)
       }
       
-      func receive(id: ID) throws -> AsyncStream<TaskResult<Message>> {
+      func receive(id: ID) throws -> AsyncStream<Result<Message, any Error>> {
         let socket = try self.socket(id: id)
         return AsyncStream { continuation in
           let task = Task {
             while !Task.isCancelled {
-              continuation.yield(await TaskResult { try await Message(socket.receive()) })
+              continuation.yield(await Result { try await Message(socket.receive()) })
             }
             continuation.finish()
           }

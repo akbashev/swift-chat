@@ -47,7 +47,7 @@ public struct EntranceView: View {
         }
       )
     }
-    /// Regular `navigationDestination(item:_)` haven't worked here.
+    /// Regular `navigationDestination(item:_)` haven't worked here for macOS.
     // TODO: Figure out why
     .navigationDestinationWrapper(
       item: $store.scope(state: \.room, action: \.room)

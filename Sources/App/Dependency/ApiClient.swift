@@ -35,7 +35,7 @@ extension ApiClient: DependencyKey {
         struct Request: Encodable {
           let query: String
         }
-        var request = URLRequest(url: URL(string: "http://localhost:8080/room/search?query=\(query)")!)
+        let request = URLRequest(url: URL(string: "http://localhost:8080/room/search?query=\(query)")!)
         let (data, _) = try await URLSession.shared.data(for: request)
         return try JSONDecoder().decode([RoomResponse].self, from: data)
       }
