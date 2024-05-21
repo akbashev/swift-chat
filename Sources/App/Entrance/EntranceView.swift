@@ -39,11 +39,13 @@ public struct EntranceView: View {
     ) { route in
       RouteView(
         route: route,
-        createUser: {
-          store.send(.createUser($0))
-        },
-        createRoom: {
-          store.send(.createRoom($0, $1))
+        send: { action in
+          switch action {
+          case .createUser(let name):
+            store.send(.createUser(name))
+          case let .createRoom(name, description):
+            store.send(.createRoom(name, description))
+          }
         }
       )
     }
@@ -76,21 +78,25 @@ struct RouteView: View {
   
   @Environment(\.dismiss) var dismiss
   
+  enum Action {
+    case createUser(name: String)
+    case createRoom(name: String, description: String?)
+  }
+  
   let route: Entrance.State.Navigation.SheetRoute
-  let createUser: (String) -> ()
-  let createRoom: (String, String?) -> ()
+  let send: (Action) -> ()
   
   var body: some View {
     NavigationView {
       switch route {
       case .createUser:
         CreateUserView { userName in
-          createUser(userName)
+          send(.createUser(name: userName))
         }
         .navigationTitle("Create user")
       case .createRoom:
         CreateRoomView { userName, description in
-          createRoom(userName, description)
+          send(.createRoom(name: userName, description: description))
         }
         .navigationTitle("Create room")
         .toolbar {

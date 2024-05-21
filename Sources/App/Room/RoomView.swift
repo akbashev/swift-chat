@@ -47,13 +47,13 @@ public struct RoomView: View {
             }
           }
           .padding()
-          .onChange(of: store.receivedMessages) { messages in
+          .onChange(of: store.receivedMessages) { oldValue, messages in
             guard let last = messages.last else { return }
             withAnimation {
               reader.scrollTo(last.id, anchor: .top)
             }
           }
-          .onChange(of: store.messagesToSend) { messages in
+          .onChange(of: store.messagesToSend) { oldValue, messages in
             guard !messages.isEmpty else { return }
             withAnimation {
               reader.scrollTo(messages.count - 1, anchor: .top)

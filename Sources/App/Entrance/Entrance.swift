@@ -89,7 +89,7 @@ public struct Entrance: Reducer {
           await send(
             .didCreateUser(
               Result {
-                try await apiClient.createUser(userName)
+                try await apiClient.createUser(name: userName)
               }
             )
           )
@@ -102,7 +102,10 @@ public struct Entrance: Reducer {
           await send(
             .didCreateRoom(
               Result {
-                try await apiClient.createRoom(name, description)
+                try await apiClient.createRoom(
+                  name: name,
+                  description: description
+                )
               }
             )
           )
@@ -113,7 +116,9 @@ public struct Entrance: Reducer {
           await send(
             .didSearchRoom(
               Result {
-                try await apiClient.searchRoom(query)
+                try await apiClient.searchRoom(
+                  query: query
+                )
               }
             )
           )

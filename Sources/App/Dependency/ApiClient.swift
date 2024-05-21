@@ -1,10 +1,12 @@
 import Foundation
 import Dependencies
+import ComposableArchitecture
 
+@DependencyClient
 struct ApiClient {
-  let createUser: (String) async throws -> (UserResponse)
-  let createRoom: (String, String?) async throws -> (RoomResponse)
-  let searchRoom: (String) async throws -> ([RoomResponse])
+  var createUser: (_ name: String) async throws -> (UserResponse)
+  var createRoom: (_ name: String, _ description: String?) async throws -> (RoomResponse)
+  var searchRoom: (_ query: String) async throws -> ([RoomResponse])
 }
 
 extension ApiClient: DependencyKey {
