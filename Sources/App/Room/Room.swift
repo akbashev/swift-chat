@@ -15,11 +15,11 @@ public struct Room {
     var message: String = ""
     var isSending: Bool = false
     
-    let room: RoomResponse
-    let user: UserResponse
+    let room: ApiClient.RoomResponse
+    let user: ApiClient.UserResponse
     
     var connectivityState = ConnectivityState.disconnected
-    var messagesToSend: [Message] = []
+    var messagesToSend: [WebSocketClient.ResponseMessage] = []
     var messagesToSendTexts: [String] {
       self.messagesToSend
         .compactMap { message in
@@ -29,7 +29,7 @@ public struct Room {
           }
         }
     }
-    var receivedMessages: [MessageResponse] = []
+    var receivedMessages: [WebSocketClient.MessageResponse] = []
     
     public enum ConnectivityState: String {
       case connected
@@ -38,12 +38,12 @@ public struct Room {
     }
     
     public init(
-      user: UserResponse,
-      room: RoomResponse,
+      user: ApiClient.UserResponse,
+      room: ApiClient.RoomResponse,
       alert: AlertState<Action.Alert>? = nil,
       connectivityState: ConnectivityState = ConnectivityState.disconnected,
-      messagesToSend: [Message] = [],
-      receivedMessages: [MessageResponse] = []
+      messagesToSend: [WebSocketClient.ResponseMessage] = [],
+      receivedMessages: [WebSocketClient.MessageResponse] = []
     ) {
       self.user = user
       self.room = room
@@ -61,10 +61,10 @@ public struct Room {
     case onAppear
     case alert(PresentationAction<Alert>)
     case connect
-    case messageToSendAdded(Message)
+    case messageToSendAdded(WebSocketClient.ResponseMessage)
     case receivedSocketMessage(Result<WebSocketClient.Message, any Error>)
     case sendButtonTapped
-    case send([Message])
+    case send([WebSocketClient.ResponseMessage])
     case didSend(Result<Bool, any Error>)
     case webSocket(WebSocketClient.Action)
     
@@ -135,7 +135,7 @@ public struct Room {
         
       case let .receivedSocketMessage(.success(message)):
         if case let .data(data) = message,
-           let messages = try? JSONDecoder().decode([MessageResponse].self, from: data) {
+           let messages = try? JSONDecoder().decode([WebSocketClient.MessageResponse].self, from: data) {
           for message in messages.filter({ $0.user.id == state.user.id }) {
             state.messagesToSend.removeAll(where: { $0 == message.message })
           }

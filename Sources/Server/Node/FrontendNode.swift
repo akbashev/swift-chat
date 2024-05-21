@@ -1,8 +1,10 @@
 import HummingbirdWSCore
 import HummingbirdWebSocket
 import Hummingbird
+import OpenAPIHummingbird
+import OpenAPIRuntime
 import Foundation
-import Frontend
+import API
 import Backend
 import Persistence
 import EventSource
@@ -10,6 +12,7 @@ import Distributed
 import DistributedCluster
 import PostgresNIO
 import VirtualActor
+import Websocket
 
 /// Doesn't look quite elegant and not sure if it's a correct way of handling things.
 /// Also, how do you load balance HBApplication? 🤔
@@ -21,39 +24,7 @@ distributed actor FrontendNode {
     case noDatabaseAvailable
     case environmentNotSet
   }
-  
-  let persistence: Persistence
-  let connectionManager: WebsocketConnection
-  lazy var router = Router()
-  lazy var wsRouter = Router(context: BasicWebSocketRequestContext.self)
-  lazy var app = Application(
-    router: router,
-    server: .http1WebSocketUpgrade(
-      webSocketRouter: wsRouter,
-      configuration: .init(extensions: [])
-    ),
-    configuration: .init(
-      address: .hostname(
-        self.actorSystem.cluster.node.host,
-        port: 8080
-      ),
-      serverName: "frontend"
-    )
-  )
-  lazy var api: RestApi = RestApi(
-    createUser: { [weak self] request in
-      guard let self else { throw Error.noConnection }
-      return try await self.createUser(request)
-    },
-    creteRoom: { [weak self] request in
-      guard let self else { throw Error.noConnection }
-      return try await self.creteRoom(request)
-    },
-    searchRoom: { [weak self] request in
-      guard let self else { throw Error.noConnection }
-      return try await self.searchRoom(request)
-    }
-  )
+
   
   init(
     actorSystem: ClusterSystem
@@ -64,23 +35,37 @@ distributed actor FrontendNode {
       host: actorSystem.cluster.node.endpoint.host,
       environment: env
     )
-    self.persistence = try await Persistence(
+    let persistence = try await Persistence(
       type: .postgres(config)
     )
-    self.connectionManager = WebsocketConnection(
+    let router = Router()
+    let wsRouter = Router(context: BasicWebSocketRequestContext.self)
+    let handler = RestApi(persistence: persistence)
+    try handler.registerHandlers(on: router)
+    let connectionManager = WebsocketConnection(
       actorSystem: actorSystem,
-      persistence: self.persistence
-    )
-    RestApi.configure(
-      router: self.router,
-      using: self.api
+      persistence: persistence
     )
     WebsocketApi.configure(
-      wsRouter: self.wsRouter,
-      connectionManager: self.connectionManager
+      wsRouter: wsRouter,
+      connectionManager: connectionManager
     )
-    self.app.addServices(self.connectionManager)
-    try await self.app.runService()
+    var app = Application(
+      router: router,
+      server: .http1WebSocketUpgrade(
+        webSocketRouter: wsRouter,
+        configuration: .init(extensions: [])
+      ),
+      configuration: .init(
+        address: .hostname(
+          self.actorSystem.cluster.node.host,
+          port: 8080
+        ),
+        serverName: "frontend"
+      )
+    )
+    app.addServices(connectionManager)
+    try await app.runService()
   }
 }
 
@@ -126,62 +111,84 @@ extension FrontendNode {
 }
 
 /// Not quite _connection_ but will call for now.
-extension FrontendNode {
+struct RestApi: APIProtocol {
+  let persistence: Persistence
+
+  func searchRoom(_ input: API.Operations.searchRoom.Input) async throws -> API.Operations.searchRoom.Output {
+    let rooms = try await persistence
+      .searchRoom(query: input.query.query)
+      .map {
+        Components.Schemas.RoomResponse(
+          id: $0.id.uuidString,
+          name: $0.name,
+          description: $0.description
+        )
+      }
+    return .ok(.init(body: .json(rooms)))
+  }
   
-  distributed func createUser(
-    _ request: Frontend.CreateUserRequest
-  ) async throws -> Frontend.UserResponse {
-    let name = request.name
+  func createUser(_ input: API.Operations.createUser.Input) async throws -> API.Operations.createUser.Output {
+    guard
+      let name = switch input.body {
+      case .json(let payload): payload.name
+      }
+    else {
+      throw FrontendNode.Error.noConnection
+    }
     let id = UUID()
     try await persistence.create(
       .user(
         .init(
           id: id,
           createdAt: .init(),
-          name: request.name
+          name: name
         )
       )
     )
-    return UserResponse(
-      id: id,
-      name: name
+    return .ok(
+      .init(
+        body: .json(
+          .init(
+            id: id.uuidString,
+            name: name
+          )
+        )
+      )
     )
   }
   
-  distributed func creteRoom(
-    _ request: Frontend.CreateRoomRequest
-  ) async throws -> Frontend.RoomResponse {
+  func createRoom(_ input: Operations.createRoom.Input) async throws -> Operations.createRoom.Output {
+    guard
+      let name = switch input.body {
+      case .json(let payload): payload.name
+      }
+    else {
+      throw FrontendNode.Error.noConnection
+    }
     let id = UUID()
-    let name = request.name
-    let description = request.description
+    let description = switch input.body {
+    case .json(let payload): payload.description
+    }
     try await persistence.create(
       .room(
         .init(
           id: id,
           createdAt: .init(),
-          name: request.name,
-          description: request.description
+          name: name,
+          description: description
         )
       )
     )
-    return RoomResponse(
-      id: id,
-      name: name,
-      description: description
-    )
-  }
-  
-  distributed func searchRoom(
-    _ request: Frontend.SearchRoomRequest
-  ) async throws -> [Frontend.RoomResponse] {
-    try await persistence
-      .searchRoom(query: request.query)
-      .map {
-        RoomResponse(
-          id: $0.id,
-          name: $0.name,
-          description: $0.description
+    return .ok(
+      .init(
+        body: .json(
+          .init(
+            id: id.uuidString,
+            name: name,
+            description: description
+          )
         )
-      }
+      )
+    )
   }
 }

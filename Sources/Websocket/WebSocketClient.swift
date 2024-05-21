@@ -1,8 +1,6 @@
 import Dependencies
 import Foundation
-import ComposableArchitecture
 
-@DependencyClient
 public struct WebSocketClient {
   struct ID: Hashable, @unchecked Sendable {
     let rawValue: AnyHashable
@@ -17,13 +15,11 @@ public struct WebSocketClient {
     }
   }
 
-  @CasePathable
   public enum Action {
     case didOpen(protocol: String?)
     case didClose(code: URLSessionWebSocketTask.CloseCode, reason: Data?)
   }
 
-  @CasePathable
   public enum Message: Equatable {
     struct Unknown: Error {}
 
@@ -155,8 +151,6 @@ extension WebSocketClient: DependencyKey {
       }
     }
   }
-
-  public static let testValue = Self()
 }
 
 extension DependencyValues {
@@ -165,3 +159,34 @@ extension DependencyValues {
     set { self[WebSocketClient.self] = newValue }
   }
 }
+
+//extension WebSocketClient {
+//  public struct MessageResponse: Identifiable, Equatable, Codable {
+//
+//    public var id: String {
+//      [self.user.id.uuidString, self.room?.id.uuidString, message.id]
+//        .compactMap { $0 }
+//        .joined(separator: "_ bn")
+//    }
+//    
+//    let user: ApiClient.UserResponse
+//    let room: ApiClient.RoomResponse?
+//    let message: ResponseMessage
+//  }
+//  
+//  public enum ResponseMessage: Identifiable, Sendable, Codable, Equatable {
+//    case join
+//    case message(String, at: Date)
+//    case leave
+//    case disconnect
+//    
+//    public var id: String {
+//      switch self {
+//      case .join: "join"
+//      case .message(let message, let date): "message_\(message)_\(date.description)"
+//      case .leave: "leave"
+//      case .disconnect: "disconnect"
+//      }
+//    }
+//  }
+//}

@@ -43,12 +43,12 @@ public struct Entrance: Reducer {
       }
     }
     
-    @Shared(.fileStorage(.user)) var user: UserResponse?
+    @Shared(.fileStorage(.user)) var user: ApiClient.UserResponse?
 
     var sheet: Entrance.State.Navigation.SheetRoute?
     var query: String = ""
     @Presents var room: Room.State?
-    var rooms: [RoomResponse] = []
+    var rooms: [ApiClient.RoomResponse] = []
     var isLoading: Bool = false
       
     public init() {}
@@ -58,13 +58,13 @@ public struct Entrance: Reducer {
     case binding(BindingAction<State>)
     case onAppear
     case openCreateRoom
-    case selectRoom(RoomResponse)
+    case selectRoom(ApiClient.RoomResponse)
     case createUser(String)
     case createRoom(String, String?)
     case searchRoom(String)
-    case didCreateRoom(Result<RoomResponse, any Error>)
-    case didCreateUser(Result<UserResponse, any Error>)
-    case didSearchRoom(Result<[RoomResponse], any Error>)
+    case didCreateRoom(Result<ApiClient.RoomResponse, any Error>)
+    case didCreateUser(Result<ApiClient.UserResponse, any Error>)
+    case didSearchRoom(Result<[ApiClient.RoomResponse], any Error>)
     case room(PresentationAction<Room.Action>)
   }
   
@@ -170,7 +170,7 @@ public struct Entrance: Reducer {
   public init() {}
 }
 
-extension RoomResponse: Identifiable {}
+extension ApiClient.RoomResponse: Identifiable {}
 
 extension URL {
   static let user = URL.documentsDirectory.appending(component: "user.json")

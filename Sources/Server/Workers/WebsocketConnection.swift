@@ -2,7 +2,7 @@ import HummingbirdWSCore
 import HummingbirdWebSocket
 import Hummingbird
 import Foundation
-import Frontend
+import Websocket
 import Backend
 import Persistence
 import DistributedCluster
