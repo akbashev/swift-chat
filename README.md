@@ -25,10 +25,10 @@ Swift 5.9 is needed (was playing with new Swift Foundations, although removed in
 * ~~Basic clustering with fault tolerance. Check different scenarios like room node crashes and etc.~~
 * ~~DATABASE NODE FAILURES ARE NOT HANDLED AT THE MOMENT~~
 * ~~Currently Event sourcing is not there yet and rudimentary (without state, recovery and snapshoting). Invest some time into this.~~
+* ~~Interesting to play with [Swift OpenAPI generator](https://github.com/apple/swift-openapi-generator).~~
 * Add some basic documentation.
 * Testing—at least covering `Room`, `User` and `WebSocketConnection` actors would be nice.
 * Tracing—debugging is quite hard thing even on a single node. Add [Swift Distributed Tracing](https://github.com/apple/swift-distributed-tracing)
-* Interesting to play with [Swift OpenAPI generator](https://github.com/apple/swift-openapi-generator).
 * Improve scalibility and fault tolerance:
   1. Add [node discovery](https://swiftpackageindex.com/apple/swift-distributed-actors/main/documentation/distributedcluster/clustering#Automatic-Node-Discovery) logic.
   2. Improve error handling. 
