@@ -12,7 +12,7 @@ import Distributed
 import DistributedCluster
 import PostgresNIO
 import VirtualActor
-import Websocket
+import WebSocket
 
 /// Doesn't look quite elegant and not sure if it's a correct way of handling things.
 /// Also, how do you load balance HBApplication? 🤔
@@ -42,11 +42,11 @@ distributed actor FrontendNode {
     let wsRouter = Router(context: BasicWebSocketRequestContext.self)
     let handler = RestApi(persistence: persistence)
     try handler.registerHandlers(on: router)
-    let connectionManager = WebsocketConnection(
+    let connectionManager = WebSocketConnection(
       actorSystem: actorSystem,
       persistence: persistence
     )
-    WebsocketApi.configure(
+    WebSocketApi.configure(
       wsRouter: wsRouter,
       connectionManager: connectionManager
     )

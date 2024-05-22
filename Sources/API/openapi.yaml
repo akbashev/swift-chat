@@ -1,6 +1,6 @@
 openapi: 3.1.0
 info:
-  title: My API
+  title: API
   version: 1.0.0
 servers:
   - url: 'http://localhost:8080'
@@ -71,6 +71,9 @@ components:
   schemas:
     UserResponse:
       type: object
+      required:
+        - id
+        - name
       properties:
         id:
           type: string
@@ -79,6 +82,9 @@ components:
           type: string
     RoomResponse:
       type: object
+      required:
+        - id
+        - name
       properties:
         id:
           type: string

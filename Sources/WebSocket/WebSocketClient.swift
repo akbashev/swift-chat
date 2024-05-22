@@ -2,14 +2,14 @@ import Dependencies
 import Foundation
 
 public struct WebSocketClient {
-  struct ID: Hashable, @unchecked Sendable {
-    let rawValue: AnyHashable
+  public struct ID: Hashable, @unchecked Sendable {
+    public let rawValue: AnyHashable
 
-    init<RawValue: Hashable & Sendable>(_ rawValue: RawValue) {
+    public init<RawValue: Hashable & Sendable>(_ rawValue: RawValue) {
       self.rawValue = rawValue
     }
 
-    init() {
+    public init() {
       struct RawValue: Hashable, Sendable {}
       self.rawValue = RawValue()
     }
@@ -35,13 +35,13 @@ public struct WebSocketClient {
     }
   }
 
-  var open: @Sendable (_ id: ID, _ url: URL, _ protocols: [String]) async -> AsyncStream<Action> = {
+  public var open: @Sendable (_ id: ID, _ url: URL, _ protocols: [String]) async -> AsyncStream<Action> = {
     _, _, _ in .finished
   }
-  var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
-  var receive: @Sendable (_ id: ID) async throws -> AsyncStream<Result<Message, Error>>
-  var send: @Sendable (_ id: ID, _ message: URLSessionWebSocketTask.Message) async throws -> Void
-  var sendPing: @Sendable (_ id: ID) async throws -> Void
+  public var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
+  public var receive: @Sendable (_ id: ID) async throws -> AsyncStream<Result<Message, Error>>
+  public var send: @Sendable (_ id: ID, _ message: URLSessionWebSocketTask.Message) async throws -> Void
+  public var sendPing: @Sendable (_ id: ID) async throws -> Void
 }
 
 extension WebSocketClient: DependencyKey {
@@ -154,39 +154,8 @@ extension WebSocketClient: DependencyKey {
 }
 
 extension DependencyValues {
-  var webSocket: WebSocketClient {
+  public var webSocket: WebSocketClient {
     get { self[WebSocketClient.self] }
     set { self[WebSocketClient.self] = newValue }
   }
 }
-
-//extension WebSocketClient {
-//  public struct MessageResponse: Identifiable, Equatable, Codable {
-//
-//    public var id: String {
-//      [self.user.id.uuidString, self.room?.id.uuidString, message.id]
-//        .compactMap { $0 }
-//        .joined(separator: "_ bn")
-//    }
-//    
-//    let user: ApiClient.UserResponse
-//    let room: ApiClient.RoomResponse?
-//    let message: ResponseMessage
-//  }
-//  
-//  public enum ResponseMessage: Identifiable, Sendable, Codable, Equatable {
-//    case join
-//    case message(String, at: Date)
-//    case leave
-//    case disconnect
-//    
-//    public var id: String {
-//      switch self {
-//      case .join: "join"
-//      case .message(let message, let date): "message_\(message)_\(date.description)"
-//      case .leave: "leave"
-//      case .disconnect: "disconnect"
-//      }
-//    }
-//  }
-//}

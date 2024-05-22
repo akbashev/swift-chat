@@ -48,7 +48,7 @@ var package = Package(
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
         "API",
-        "Websocket",
+        "WebSocket",
       ]
     ),
     .target(
@@ -81,7 +81,7 @@ var package = Package(
       ]
     ),
     .target(
-      name: "Websocket",
+      name: "WebSocket",
       dependencies: [
         .product(name: "Dependencies", package: "swift-dependencies"),
         .product(name: "Hummingbird", package: "hummingbird"),
@@ -99,7 +99,7 @@ var package = Package(
         "Backend",
         "Persistence",
         "VirtualActor",
-        "Websocket",
+        "WebSocket",
       ]
     ),
   ]
