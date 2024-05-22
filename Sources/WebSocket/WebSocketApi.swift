@@ -6,7 +6,7 @@ import Logging
 import AsyncAlgorithms
 import ServiceLifecycle
 
-public enum WebsocketApi {
+public enum WebSocketApi {
   
   public protocol ConnectionManager: Service {
     typealias OutputStream = AsyncChannel<WebSocketOutboundWriter.OutboundFrame>

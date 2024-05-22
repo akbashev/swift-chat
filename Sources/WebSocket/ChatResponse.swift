@@ -23,3 +23,25 @@ public struct ChatResponse: Sendable, Codable {
     self.message = message
   }
 }
+
+public struct RoomResponse: Sendable, Codable, Equatable {
+  public let id: UUID
+  public let name: String
+  public let description: String?
+  
+  public init(id: UUID, name: String, description: String?) {
+    self.id = id
+    self.name = name
+    self.description = description
+  }
+}
+
+public struct UserResponse: Sendable, Codable, Equatable {
+  public let id: UUID
+  public let name: String
+  
+  public init(id: UUID, name: String) {
+    self.id = id
+    self.name = name
+  }
+}

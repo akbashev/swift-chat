@@ -1,6 +1,8 @@
 import ComposableArchitecture
 import Dependencies
 import Foundation
+import API
+import WebSocket
 
 @Reducer
 public struct Room {
@@ -9,14 +11,14 @@ public struct Room {
   @Dependency(\.webSocket) var webSocket
   
   @ObservableState
-  public struct State: Equatable {
+  public struct State {
     
     var alert: AlertState<Action.Alert>?
     var message: String = ""
     var isSending: Bool = false
     
-    let room: RoomResponse
-    let user: UserResponse
+    let room: RoomPresentation
+    let user: UserPresentation
     
     var connectivityState = ConnectivityState.disconnected
     var messagesToSend: [Message] = []
@@ -29,7 +31,7 @@ public struct Room {
           }
         }
     }
-    var receivedMessages: [MessageResponse] = []
+    var receivedMessages: [MessagePresentation] = []
     
     public enum ConnectivityState: String {
       case connected
@@ -38,12 +40,12 @@ public struct Room {
     }
     
     public init(
-      user: UserResponse,
-      room: RoomResponse,
+      user: UserPresentation,
+      room: RoomPresentation,
       alert: AlertState<Action.Alert>? = nil,
       connectivityState: ConnectivityState = ConnectivityState.disconnected,
       messagesToSend: [Message] = [],
-      receivedMessages: [MessageResponse] = []
+      receivedMessages: [MessagePresentation] = []
     ) {
       self.user = user
       self.room = room
@@ -135,7 +137,10 @@ public struct Room {
         
       case let .receivedSocketMessage(.success(message)):
         if case let .data(data) = message,
-           let messages = try? JSONDecoder().decode([MessageResponse].self, from: data) {
+          let messages = try? JSONDecoder()
+            .decode([WebSocket.ChatResponse].self, from: data)
+            .map(MessagePresentation.init)
+        {
           for message in messages.filter({ $0.user.id == state.user.id }) {
             state.messagesToSend.removeAll(where: { $0 == message.message })
           }
@@ -153,6 +158,14 @@ public struct Room {
           await send(
             .didSend(
               Result {
+                let messages: [WebSocket.ChatResponse.Message] = messages.map {
+                  switch $0 {
+                  case .disconnect: .disconnect
+                  case .join: .join
+                  case .leave: .leave
+                  case let .message(text, at: date): .message(text, at: date)
+                  }
+                }
                 let data = try JSONEncoder().encode(messages)
                 try await self.webSocket.send(WebSocketClient.ID(), .data(data))
                 return true
@@ -201,5 +214,33 @@ public struct Room {
       }
     }
     .ifLet(\.alert, action: /Action.alert)
+  }
+}
+
+extension MessagePresentation {
+  init(_ message: WebSocket.ChatResponse) {
+    self.user = .init(message.user)
+    self.room = message.room.map(RoomPresentation.init)
+    self.message = switch message.message {
+    case .disconnect: .disconnect
+    case .join: .join
+    case .leave: .leave
+    case let .message(text, at: date): .message(text, at: date)
+    }
+  }
+}
+
+extension UserPresentation {
+  init(_ user: WebSocket.UserResponse) {
+    self.id = user.id
+    self.name = user.name
+  }
+}
+
+extension RoomPresentation {
+  init(_ room: WebSocket.RoomResponse) {
+    self.id = room.id
+    self.description = room.description
+    self.name = room.name
   }
 }

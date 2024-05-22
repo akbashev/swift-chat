@@ -1,0 +1,5 @@
+generate:
+  - types
+  - server
+  - client
+accessModifier: public

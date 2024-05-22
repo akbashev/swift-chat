@@ -1,29 +1,25 @@
 import Dependencies
 import Foundation
-import ComposableArchitecture
 
-@DependencyClient
 public struct WebSocketClient {
-  struct ID: Hashable, @unchecked Sendable {
-    let rawValue: AnyHashable
+  public struct ID: Hashable, @unchecked Sendable {
+    public let rawValue: AnyHashable
 
-    init<RawValue: Hashable & Sendable>(_ rawValue: RawValue) {
+    public init<RawValue: Hashable & Sendable>(_ rawValue: RawValue) {
       self.rawValue = rawValue
     }
 
-    init() {
+    public init() {
       struct RawValue: Hashable, Sendable {}
       self.rawValue = RawValue()
     }
   }
 
-  @CasePathable
   public enum Action {
     case didOpen(protocol: String?)
     case didClose(code: URLSessionWebSocketTask.CloseCode, reason: Data?)
   }
 
-  @CasePathable
   public enum Message: Equatable {
     struct Unknown: Error {}
 
@@ -39,13 +35,13 @@ public struct WebSocketClient {
     }
   }
 
-  var open: @Sendable (_ id: ID, _ url: URL, _ protocols: [String]) async -> AsyncStream<Action> = {
+  public var open: @Sendable (_ id: ID, _ url: URL, _ protocols: [String]) async -> AsyncStream<Action> = {
     _, _, _ in .finished
   }
-  var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
-  var receive: @Sendable (_ id: ID) async throws -> AsyncStream<Result<Message, Error>>
-  var send: @Sendable (_ id: ID, _ message: URLSessionWebSocketTask.Message) async throws -> Void
-  var sendPing: @Sendable (_ id: ID) async throws -> Void
+  public var close: @Sendable (ID, URLSessionWebSocketTask.CloseCode, Data?) async throws -> ()
+  public var receive: @Sendable (_ id: ID) async throws -> AsyncStream<Result<Message, Error>>
+  public var send: @Sendable (_ id: ID, _ message: URLSessionWebSocketTask.Message) async throws -> Void
+  public var sendPing: @Sendable (_ id: ID) async throws -> Void
 }
 
 extension WebSocketClient: DependencyKey {
@@ -155,12 +151,10 @@ extension WebSocketClient: DependencyKey {
       }
     }
   }
-
-  public static let testValue = Self()
 }
 
 extension DependencyValues {
-  var webSocket: WebSocketClient {
+  public var webSocket: WebSocketClient {
     get { self[WebSocketClient.self] }
     set { self[WebSocketClient.self] = newValue }
   }

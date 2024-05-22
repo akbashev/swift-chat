@@ -2,18 +2,18 @@ import HummingbirdWSCore
 import HummingbirdWebSocket
 import Hummingbird
 import Foundation
-import Frontend
+import WebSocket
 import Backend
 import Persistence
 import DistributedCluster
 import PostgresNIO
 import ServiceLifecycle
 
-actor WebsocketConnection: WebsocketApi.ConnectionManager {
+actor WebSocketConnection: WebSocketApi.ConnectionManager {
   
   let outboundCounnections: OutboundConnections
-  let connectionStream: AsyncStream<WebsocketApi.Connection>
-  let connectionContinuation: AsyncStream<WebsocketApi.Connection>.Continuation
+  let connectionStream: AsyncStream<WebSocketApi.Connection>
+  let connectionContinuation: AsyncStream<WebSocketApi.Connection>.Continuation
   let logger: Logger
   
   public init(
@@ -22,7 +22,7 @@ actor WebsocketConnection: WebsocketApi.ConnectionManager {
     logger: Logger = Logger(label: "WebSocketConnection")
   ) {
     self.logger = logger
-    (self.connectionStream, self.connectionContinuation) = AsyncStream<WebsocketApi.Connection>.makeStream()
+    (self.connectionStream, self.connectionContinuation) = AsyncStream<WebSocketApi.Connection>.makeStream()
     self.outboundCounnections = OutboundConnections(
       actorSystem: actorSystem,
       persistence: persistence
@@ -74,12 +74,12 @@ actor WebsocketConnection: WebsocketApi.ConnectionManager {
   }
   
   func add(
-    info: WebsocketApi.Connection.Info,
+    info: WebSocketApi.Connection.Info,
     inbound: WebSocketInboundStream,
     outbound: WebSocketOutboundWriter
-  ) -> WebsocketApi.ConnectionManager.OutputStream {
-    let outputStream = WebsocketApi.ConnectionManager.OutputStream()
-    let connection = WebsocketApi.Connection(info: info, inbound: inbound, outbound: outputStream)
+  ) -> WebSocketApi.ConnectionManager.OutputStream {
+    let outputStream = WebSocketApi.ConnectionManager.OutputStream()
+    let connection = WebSocketApi.Connection(info: info, inbound: inbound, outbound: outputStream)
     self.connectionContinuation.yield(connection)
     return outputStream
   }
@@ -89,10 +89,10 @@ actor OutboundConnections {
   
   let actorSystem: ClusterSystem
   let persistence: Persistence
-  var outboundWriters: [WebsocketApi.Connection.Info: (User, Room)] = [:]
+  var outboundWriters: [WebSocketApi.Connection.Info: (User, Room)] = [:]
   
   func add(
-    connection: WebsocketApi.Connection
+    connection: WebSocketApi.Connection
   ) async throws {
     guard self.outboundWriters[connection.info] == nil else { return }
     let room = try await self.findRoom(with: connection.info)
@@ -123,7 +123,7 @@ actor OutboundConnections {
   }
   
   func remove(
-    connection: WebsocketApi.Connection
+    connection: WebSocketApi.Connection
   ) async throws {
     guard let (user, room) = self.outboundWriters[connection.info] else { return }
     try await user.send(message: .leave, to: room)
@@ -132,7 +132,7 @@ actor OutboundConnections {
   
   func handle(
     _ message: WebSocketMessage,
-    from connection: WebsocketApi.Connection
+    from connection: WebSocketApi.Connection
   ) async throws {
     guard let (user, room) = self.outboundWriters[connection.info] else { return }
     switch message {
@@ -177,7 +177,7 @@ actor OutboundConnections {
   }
   
   private func findRoom(
-    with info: WebsocketApi.Connection.Info
+    with info: WebSocketApi.Connection.Info
   ) async throws -> Room {
     let roomModel = try await self.persistence.getRoom(id: info.roomId)
     return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in

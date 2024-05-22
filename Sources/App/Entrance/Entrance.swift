@@ -1,10 +1,11 @@
 import SwiftUI
 import ComposableArchitecture
+import API
 
 @Reducer
 public struct Entrance: Reducer {
   
-  @Dependency(\.apiClient) var apiClient
+  @Dependency(\.client) var client
   
   @ObservableState
   public struct State {
@@ -43,12 +44,13 @@ public struct Entrance: Reducer {
       }
     }
     
-    @Shared(.fileStorage(.user)) var user: UserResponse?
+    @Shared(.fileStorage(.user)) var user: UserPresentation?
+
+    @Presents var room: Room.State?
 
     var sheet: Entrance.State.Navigation.SheetRoute?
     var query: String = ""
-    @Presents var room: Room.State?
-    var rooms: [RoomResponse] = []
+    var rooms: [RoomPresentation] = []
     var isLoading: Bool = false
       
     public init() {}
@@ -58,13 +60,13 @@ public struct Entrance: Reducer {
     case binding(BindingAction<State>)
     case onAppear
     case openCreateRoom
-    case selectRoom(RoomResponse)
+    case selectRoom(RoomPresentation)
     case createUser(String)
     case createRoom(String, String?)
     case searchRoom(String)
-    case didCreateRoom(Result<RoomResponse, any Error>)
-    case didCreateUser(Result<UserResponse, any Error>)
-    case didSearchRoom(Result<[RoomResponse], any Error>)
+    case didCreateRoom(Result<RoomPresentation, Error>)
+    case didCreateUser(Result<UserPresentation, any Error>)
+    case didSearchRoom(Result<[RoomPresentation], any Error>)
     case room(PresentationAction<Room.Action>)
   }
   
@@ -89,7 +91,9 @@ public struct Entrance: Reducer {
           await send(
             .didCreateUser(
               Result {
-                try await apiClient.createUser(name: userName)
+                try await UserPresentation(
+                  client.createUser(body: .json(.init(name: userName)))
+                )
               }
             )
           )
@@ -102,9 +106,15 @@ public struct Entrance: Reducer {
           await send(
             .didCreateRoom(
               Result {
-                try await apiClient.createRoom(
-                  name: name,
-                  description: description
+                try await RoomPresentation(
+                  client.createRoom(
+                    body: .json(
+                      .init(
+                        name: name,
+                        description: description
+                      )
+                    )
+                  )
                 )
               }
             )
@@ -116,9 +126,12 @@ public struct Entrance: Reducer {
           await send(
             .didSearchRoom(
               Result {
-                try await apiClient.searchRoom(
-                  query: query
-                )
+                try await client.searchRoom(
+                  query: .init(query: query)
+                ).ok
+                  .body
+                  .json
+                  .compactMap(RoomPresentation.init)
               }
             )
           )
@@ -170,8 +183,46 @@ public struct Entrance: Reducer {
   public init() {}
 }
 
-extension RoomResponse: Identifiable {}
-
 extension URL {
   static let user = URL.documentsDirectory.appending(component: "user.json")
+}
+
+extension Entrance {
+  enum MappingError: Swift.Error {
+    case user
+    case room
+    case roomSearch
+  }
+}
+
+extension UserPresentation {
+  init(_ output: Operations.createUser.Output) throws {
+    let payload = try output.ok.body.json
+    guard let id = UUID(uuidString: payload.id) else {
+      throw Entrance.MappingError.user
+    }
+    self.id = id
+    self.name = payload.name
+  }
+}
+
+extension RoomPresentation {
+  init(_ output: Operations.createRoom.Output) throws {
+    let payload = try output.ok.body.json
+    try self.init(payload)
+  }
+}
+
+
+extension RoomPresentation {
+  init(_ response: Components.Schemas.RoomResponse) throws {
+    guard
+      let id = UUID(uuidString: response.id)
+    else {
+      throw Entrance.MappingError.room
+    }
+    self.id = id
+    self.name = response.name
+    self.description = response.description
+  }
 }
