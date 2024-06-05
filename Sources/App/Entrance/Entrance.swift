@@ -187,19 +187,17 @@ extension URL {
   static let user = URL.documentsDirectory.appending(component: "user.json")
 }
 
-extension Entrance {
-  enum MappingError: Swift.Error {
-    case user
-    case room
-    case roomSearch
-  }
+public enum ParseMappingError: Swift.Error {
+  case user
+  case room
+  case roomSearch
 }
 
 extension UserPresentation {
   init(_ output: Operations.createUser.Output) throws {
     let payload = try output.ok.body.json
     guard let id = UUID(uuidString: payload.id) else {
-      throw Entrance.MappingError.user
+      throw ParseMappingError.user
     }
     self.id = id
     self.name = payload.name
@@ -213,16 +211,38 @@ extension RoomPresentation {
   }
 }
 
+extension UserPresentation {
+  init(_ response: Components.Schemas.UserResponse) throws {
+    guard let id = UUID(uuidString: response.id) else {
+      throw ParseMappingError.user
+    }
+    self.id = id
+    self.name = response.name
+  }
+}
+
 
 extension RoomPresentation {
   init(_ response: Components.Schemas.RoomResponse) throws {
     guard
       let id = UUID(uuidString: response.id)
     else {
-      throw Entrance.MappingError.room
+      throw ParseMappingError.room
     }
     self.id = id
     self.name = response.name
     self.description = response.description
+  }
+}
+
+extension Components.Schemas.UserResponse {
+  init(_ user: UserPresentation) {
+    self.init(id: user.id.uuidString, name: user.name)
+  }
+}
+
+extension Components.Schemas.RoomResponse {
+  init(_ room: RoomPresentation) {
+    self.init(id: room.id.uuidString, name: room.name, description: room.description)
   }
 }

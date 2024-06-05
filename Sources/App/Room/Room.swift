@@ -2,26 +2,29 @@ import ComposableArchitecture
 import Dependencies
 import Foundation
 import API
-import WebSocket
+
 
 @Reducer
 public struct Room {
   
   @Dependency(\.continuousClock) var clock
-  @Dependency(\.webSocket) var webSocket
+  @Dependency(\.client) var client
   
+  public typealias ChatMessage = Components.Schemas.ChatMessage
+
   @ObservableState
   public struct State {
-    
-    var alert: AlertState<Action.Alert>?
-    var message: String = ""
-    var isSending: Bool = false
     
     let room: RoomPresentation
     let user: UserPresentation
     
+    var alert: AlertState<Action.Alert>?
+    var message: String = ""
+    var isSending: Bool = false
     var connectivityState = ConnectivityState.disconnected
+    var receivedMessages: [MessagePresentation] = []
     var messagesToSend: [Message] = []
+
     var messagesToSendTexts: [String] {
       self.messagesToSend
         .compactMap { message in
@@ -30,13 +33,6 @@ public struct Room {
           default: .none
           }
         }
-    }
-    var receivedMessages: [MessagePresentation] = []
-    
-    public enum ConnectivityState: String {
-      case connected
-      case connecting
-      case disconnected
     }
     
     public init(
@@ -56,21 +52,29 @@ public struct Room {
     }
   }
   
-  public init() {}
+  public enum ConnectivityState: String {
+    case connected
+    case connecting
+    case disconnected
+  }
   
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
-    case alert(PresentationAction<Alert>)
     case connect
+    case alert(PresentationAction<Alert>)
     case messageToSendAdded(Message)
-    case receivedSocketMessage(Result<WebSocketClient.Message, any Error>)
+    case receivedMessage(ChatMessage)
+    case updatedConnectivityState(ConnectivityState)
     case sendButtonTapped
     case send([Message])
-    case didSend(Result<Bool, any Error>)
-    case webSocket(WebSocketClient.Action)
+    case didSend(Result<[Message], any Error>)
     
     public enum Alert: Equatable {}
+  }
+  
+  enum CancelId {
+    case connection
   }
   
   public var body: some Reducer<State, Action> {
@@ -81,96 +85,72 @@ public struct Room {
         return .run { send in
           await send(.connect)
         }
-      case .alert:
-        return .none
-        
       case .connect:
         switch state.connectivityState {
         case .connected, .connecting:
           state.connectivityState = .disconnected
-          return .cancel(id: WebSocketClient.ID())
-          
+          return .cancel(id: CancelId.connection)
         case .disconnected:
           state.connectivityState = .connecting
-          let userId = state.user.id
-          let roomId = state.room.id
-          let messages = state.messagesToSend
+          let userId = state.user.id.uuidString
+          let roomId = state.room.id.uuidString
           return .run { send in
-            let actions = await self.webSocket
-              .open(WebSocketClient.ID(), URL(string: "ws://localhost:8080/chat?room_id=\(roomId)&user_id=\(userId)")!, [])
-            if !messages.isEmpty {
-              await send(.send(messages))
-            }
-            await withThrowingTaskGroup(of: Void.self) { group in
-              for await action in actions {
-                // NB: Can't call `await send` here outside of `group.addTask` due to task local
-                //     dependency mutation in `Effect.{task,run}`. Can maybe remove that explicit task
-                //     local mutation (and this `addTask`?) in a world with
-                //     `Effect(operation: .run { ... })`?
-                group.addTask { await send(.webSocket(action)) }
-                switch action {
-                case .didOpen:
+            let response = try await client.getMessages(
+              query: .init(
+                user_id: userId,
+                room_id: roomId
+              ),
+              headers: .init(
+                accept: [
+                  .init(
+                    contentType: .application_jsonl
+                  )
+                ]
+              )
+            )
+            let messageStream = try response.ok.body.application_jsonl.asDecodedJSONLines(
+              of: Room.ChatMessage.self
+            )
+            await send(.updatedConnectivityState(.connected))
+            try await withTaskCancellation(id: CancelId.connection) {
+              try await withThrowingTaskGroup(of: Void.self) { group in
+                for try await message in messageStream {
                   group.addTask {
-                    while !Task.isCancelled {
-                      try await self.clock.sleep(for: .seconds(10))
-                      try await self.webSocket.sendPing(WebSocketClient.ID())
-                    }
+                    await send(.receivedMessage(message))
                   }
-                  group.addTask {
-                    for await result in try await self.webSocket.receive(WebSocketClient.ID()) {
-                      await send(.receivedSocketMessage(result))
-                    }
-                  }
-                case .didClose:
-                  print("didClose")
-                  return
                 }
               }
+              await send(.updatedConnectivityState(.disconnected))
             }
           }
-          .cancellable(id: WebSocketClient.ID())
         }
-        
       case let .messageToSendAdded(message):
         state.messagesToSend.append(message)
         return .none
-        
-      case let .receivedSocketMessage(.success(message)):
-        if case let .data(data) = message,
-          let messages = try? JSONDecoder()
-            .decode([WebSocket.ChatResponse].self, from: data)
-            .map(MessagePresentation.init)
-        {
-          for message in messages.filter({ $0.user.id == state.user.id }) {
-            state.messagesToSend.removeAll(where: { $0 == message.message })
-          }
-          state.receivedMessages.append(contentsOf: messages)
+      case let .receivedMessage(message):
+        guard
+          let message = try? MessagePresentation(message)
+        else {
+          return .none
         }
+        state.messagesToSend.removeAll(where: { $0 == message.message })
+        state.receivedMessages.append(message)
         return .none
-      case .receivedSocketMessage(.failure):
-        state.connectivityState = .disconnected
-        return .run { send in
-          try await self.webSocket.close(WebSocketClient.ID(), .normalClosure, .none)
-        }
       case .send(let messages):
         state.isSending = true
+        let user = state.user
+        let room = state.room
         return .run { send in
-          await send(
-            .didSend(
-              Result {
-                let messages: [WebSocket.ChatResponse.Message] = messages.map {
-                  switch $0 {
-                  case .disconnect: .disconnect
-                  case .join: .join
-                  case .leave: .leave
-                  case let .message(text, at: date): .message(text, at: date)
-                  }
-                }
-                let data = try JSONEncoder().encode(messages)
-                try await self.webSocket.send(WebSocketClient.ID(), .data(data))
-                return true
-              }
+          for message in messages {
+            let chatMessage = ChatMessage(
+              user: user,
+              room: room,
+              message: message
             )
+            _ = try await self.client.sendMessage(body: .json(chatMessage))
+          }
+          await send(
+            .didSend(.success(messages))
           )
         }
       case .sendButtonTapped:
@@ -181,7 +161,7 @@ public struct Room {
         let messagesToSend = state.messagesToSend
         return .run { send in
           await send(.send(messagesToSend))
-        }.cancellable(id: WebSocketClient.ID())
+        }
       case let .didSend(.failure(error)):
         state.isSending = false
         state.alert = AlertState {
@@ -194,20 +174,14 @@ public struct Room {
           )
         }
         return .none
-        
-      case .didSend(.success):
-        state.isSending = false
+      case .updatedConnectivityState(let connectivityState):
+        state.connectivityState = connectivityState
         return .none
-      case .webSocket(.didClose):
-        state.connectivityState = .disconnected
-        return .run { send in
-          Task.cancel(id: WebSocketClient.ID())
-          try await Task.sleep(for: .seconds(3))
-          await send(.connect)
-        }
-      case .webSocket(.didOpen):
-        state.connectivityState = .connected
+      case .didSend:
+        state.isSending = false
         state.receivedMessages.removeAll()
+        return .none
+      case .alert:
         return .none
       case .binding:
         return .none
@@ -215,32 +189,51 @@ public struct Room {
     }
     .ifLet(\.alert, action: /Action.alert)
   }
+  
+  public init() {}
 }
 
+struct ParseError: Swift.Error {}
+
 extension MessagePresentation {
-  init(_ message: WebSocket.ChatResponse) {
-    self.user = .init(message.user)
-    self.room = message.room.map(RoomPresentation.init)
+  init(_ message: Room.ChatMessage) throws {
+    self.user = try .init(message.user)
+    self.room = try .init(message.room)
     self.message = switch message.message {
-    case .disconnect: .disconnect
-    case .join: .join
-    case .leave: .leave
-    case let .message(text, at: date): .message(text, at: date)
+    case .DisconnectMessage: 
+        .disconnect
+    case .JoinMessage: 
+        .join
+    case .LeaveMessage: 
+        .leave
+    case .TextMessage(let message):
+        .message(message.content, at: message.timestamp)
     }
   }
 }
 
-extension UserPresentation {
-  init(_ user: WebSocket.UserResponse) {
-    self.id = user.id
-    self.name = user.name
-  }
-}
-
-extension RoomPresentation {
-  init(_ room: WebSocket.RoomResponse) {
-    self.id = room.id
-    self.description = room.description
-    self.name = room.name
+extension Components.Schemas.ChatMessage {
+  init(
+    user: UserPresentation,
+    room: RoomPresentation,
+    message: Message
+  ) {
+    let user = Components.Schemas.UserResponse(user)
+    let room = Components.Schemas.RoomResponse(room)
+    let message: Components.Schemas.ChatMessage.messagePayload = switch message {
+    case .disconnect:
+        .DisconnectMessage(.init(_type: .disconnect))
+    case .join:
+        .JoinMessage(.init(_type: .join))
+    case .leave:
+        .LeaveMessage(.init(_type: .leave))
+    case .message(let message, let date):
+        .TextMessage(.init(_type: .message, content: message, timestamp: date))
+    }
+    self.init(
+      user: user,
+      room: room,
+      message: message
+    )
   }
 }

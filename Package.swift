@@ -22,7 +22,6 @@ var package = Package(
     .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.0.0"),
     // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0-beta.2"),
-    .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "2.0.0-alpha.3"),
     .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0-beta.1"),
     // Vapor
     .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.18.0"),
@@ -47,8 +46,7 @@ var package = Package(
       dependencies: [
         .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
         .product(name: "Dependencies", package: "swift-dependencies"),
-        "API",
-        "WebSocket",
+        "API"
       ]
     ),
     .target(
@@ -80,15 +78,6 @@ var package = Package(
         .product(name: "DistributedCluster", package: "swift-distributed-actors"),
       ]
     ),
-    .target(
-      name: "WebSocket",
-      dependencies: [
-        .product(name: "Dependencies", package: "swift-dependencies"),
-        .product(name: "Hummingbird", package: "hummingbird"),
-        .product(name: "HummingbirdRouter", package: "hummingbird"),
-        .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket")
-      ]
-    ),
     .executableTarget(
       name: "Server",
       dependencies: [
@@ -98,8 +87,7 @@ var package = Package(
         "API",
         "Backend",
         "Persistence",
-        "VirtualActor",
-        "WebSocket",
+        "VirtualActor"
       ]
     ),
   ]

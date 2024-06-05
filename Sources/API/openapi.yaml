@@ -67,6 +67,53 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/RoomResponse'
+  /chat:
+    get:
+      operationId: getMessages
+      summary: Subscribe to chat updates
+      parameters:
+        - in: query
+          name: user_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+        - in: query
+          name: room_id
+          schema:
+            type: string
+            format: uuid
+          required: true
+      responses:
+        '200':
+          description: A stream of chat updates
+          content:
+            application/jsonl:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+            application/json-seq:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ChatMessage'
+            text/event-stream:
+              schema:
+                $ref: '#/components/schemas/ChatMessage'
+  /message:
+    post:
+      operationId: sendMessage
+      summary: Send a message from a client
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatMessage'
+      responses:
+        '200':
+          description: OK
 components:
   schemas:
     UserResponse:
@@ -94,3 +141,59 @@ components:
         description:
           type: string
           nullable: true
+    ChatMessage:
+      type: object
+      properties:
+        user:
+          $ref: '#/components/schemas/UserResponse'
+        room:
+          $ref: '#/components/schemas/RoomResponse'
+        message:
+          oneOf:
+            - $ref: '#/components/schemas/JoinMessage'
+            - $ref: '#/components/schemas/TextMessage'
+            - $ref: '#/components/schemas/LeaveMessage'
+            - $ref: '#/components/schemas/DisconnectMessage'
+      required:
+        - user
+        - room
+        - message
+    JoinMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [join]
+      required:
+        - type
+    TextMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [message]
+        content:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+      required:
+        - type
+        - content
+        - timestamp
+    LeaveMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [leave]
+      required:
+        - type
+    DisconnectMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [disconnect]
+      required:
+        - type

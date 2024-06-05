@@ -3,13 +3,13 @@ import Foundation
 public struct MessagePresentation: Identifiable, Equatable {
   
   public var id: String {
-    [self.user.id.uuidString, self.room?.id.uuidString, message.id]
+    [self.user.id.uuidString, self.room.id.uuidString, message.id]
       .compactMap { $0 }
       .joined(separator: "_ bn")
   }
   
   let user: UserPresentation
-  let room: RoomPresentation?
+  let room: RoomPresentation
   let message: Message
 }
 
