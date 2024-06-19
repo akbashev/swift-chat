@@ -9,6 +9,7 @@ import Persistence
 actor UserRoomConnections {
   
   typealias Value = Components.Schemas.ChatMessage
+  static let heartbeatInterval: Duration = .seconds(15)
 
   struct Info: Hashable {
     let userId: UUID
@@ -132,7 +133,7 @@ actor UserRoomConnections {
   func checkConnections() {
     var connectionsToRemove: [Info] = []
     for (info, connection) in self.connections {
-      if Date().timeIntervalSince(connection.latestMessageDate) > HeartbeatSequence.length {
+      if Date().timeIntervalSince(connection.latestMessageDate) > UserRoomConnections.heartbeatInterval.timeInterval {
         connectionsToRemove.append(info)
       }
     }
@@ -239,5 +240,13 @@ extension UserRoomConnections.Info {
     }
     self.userId = userId
     self.roomId = roomId
+  }
+}
+
+extension Duration {
+  var timeInterval: TimeInterval {
+    let seconds = TimeInterval(self.components.seconds)
+    let nanoseconds = TimeInterval(self.components.attoseconds) / 1_000_000_000_000_000
+    return seconds + nanoseconds
   }
 }

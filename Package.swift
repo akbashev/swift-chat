@@ -20,6 +20,7 @@ var package = Package(
     .package(url: "https://github.com/apple/swift-openapi-generator.git", from: "1.2.1"),
     .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.0.0"),
     .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.0.0"),
+    .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0"),
     // Hummingbird
     .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0-beta.2"),
     .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0-beta.1"),
@@ -48,7 +49,8 @@ var targets: [PackageDescription.Target] = [
     dependencies: [
       .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       .product(name: "Dependencies", package: "swift-dependencies"),
-      "API"
+      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+      "API",
     ]
   ),
   .target(
@@ -86,6 +88,7 @@ var targets: [PackageDescription.Target] = [
       .product(name: "EventSourcing", package: "cluster-event-sourcing"),
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "Dependencies", package: "swift-dependencies"),
+      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
       "API",
       "Backend",
       "Persistence",

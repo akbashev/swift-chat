@@ -8,6 +8,7 @@ import ServiceLifecycle
 import API
 import OpenAPIHummingbird
 import OpenAPIRuntime
+import AsyncAlgorithms
 
 struct ClientServerConnectionHandler: Service {
   
@@ -61,27 +62,12 @@ struct ClientServerConnectionHandler: Service {
   }
 
   private func heartbeat() async {
-    let heartbeatSequence = HeartbeatSequence()
+    let heartbeatSequence = AsyncTimerSequence(
+      interval: UserRoomConnections.heartbeatInterval,
+      clock: .continuous
+    )
     for await _ in heartbeatSequence {
       await self.userRoomConnections.checkConnections()
     }
-  }
-}
-
-struct HeartbeatSequence: AsyncSequence {
-  
-  static let length: TimeInterval = 15
-  
-  typealias Element = Void
-  
-  struct AsyncIterator: AsyncIteratorProtocol {
-    mutating func next() async -> Void? {
-      try? await Task.sleep(for: .seconds(HeartbeatSequence.length))
-      return ()
-    }
-  }
-  
-  func makeAsyncIterator() -> AsyncIterator {
-    return AsyncIterator()
   }
 }

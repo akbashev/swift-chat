@@ -2,10 +2,13 @@ import Foundation
 import Dependencies
 import OpenAPIRuntime
 import API
+import AsyncAlgorithms
 
 public actor ChatClient {
   
   public typealias Message = Components.Schemas.ChatMessage
+  static let heartbeatInterval: Duration = .seconds(10)
+
   public struct Info: Hashable {
     let room: RoomPresentation
     let user: UserPresentation
@@ -13,11 +16,7 @@ public actor ChatClient {
   
   @Dependency(\.client) var client
   var connections: [Info: AsyncStream<Message>.Continuation] = [:]
-  
-  public init() {
-    self.heartbeat()
-  }
-  
+
   public func connect(
     user: UserPresentation,
     to room: RoomPresentation
@@ -48,6 +47,9 @@ public actor ChatClient {
     self.connections[info] = continuation
     continuation.onTermination = { termination in
       Task { [weak self] in await self?.removeConnection(info: info) }
+    }
+    if heartbeatTask == .none {
+      self.heartbeat()
     }
     return messageStream
   }
@@ -84,11 +86,18 @@ public actor ChatClient {
   
   private func removeConnection(info: Info) {
     self.connections.removeValue(forKey: info)
+    if self.connections.isEmpty {
+      self.heartbeatTask?.cancel()
+      self.heartbeatTask = .none
+    }
   }
   
   private var heartbeatTask: Task<Void, Never>?
   private func heartbeat() {
-    let heartbeatSequence = HeartbeatSequence()
+    let heartbeatSequence = AsyncTimerSequence(
+      interval: ChatClient.heartbeatInterval,
+      clock: .continuous
+    )
     self.heartbeatTask = Task {
       for await message in heartbeatSequence {
         for (info, connection) in self.connections {
@@ -96,7 +105,7 @@ public actor ChatClient {
             Message(
               user: info.user,
               room: info.room,
-              message: message
+              message: .init(_type: .heartbeat)
             )
           )
         }
@@ -106,22 +115,6 @@ public actor ChatClient {
   
   deinit {
     self.heartbeatTask?.cancel()
-  }
-}
-
-struct HeartbeatSequence: AsyncSequence {
-  
-  typealias Element = Components.Schemas.HeartbeatMessage
-  
-  struct AsyncIterator: AsyncIteratorProtocol {
-    mutating func next() async -> Components.Schemas.HeartbeatMessage? {
-      try? await Task.sleep(for: .seconds(10))
-      return .init(_type: .heartbeat)
-    }
-  }
-  
-  func makeAsyncIterator() -> AsyncIterator {
-    return AsyncIterator()
   }
 }
 
