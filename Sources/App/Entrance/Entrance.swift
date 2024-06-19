@@ -6,7 +6,8 @@ import API
 public struct Entrance: Reducer {
   
   @Dependency(\.client) var client
-  
+  @Dependency(\.chatClient) var chatClient
+
   @ObservableState
   public struct State {
     
@@ -169,6 +170,19 @@ public struct Entrance: Reducer {
             try await Task.sleep(for: .seconds(0.5))
             await send(.searchRoom(query))
           }
+        }
+      case .room(.dismiss):
+        guard 
+          let room = state.room?.room,
+          let user = state.user
+        else {
+          return .none
+        }
+        return .run { send in
+          await self.chatClient.disconnect(
+            user: user,
+            from: room
+          )
         }
       case .binding(_),
           .room(_):

@@ -28,67 +28,76 @@ var package = Package(
     // Pointfree.co
     .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.10.0"),
     .package(url: "https://github.com/pointfreeco/swift-dependencies.git", from: "1.3.0"),
-  ],
-  targets: [
-    .target(
-      name: "API",
-      dependencies: [
-        .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-        .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
-        .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-      ],
-      plugins: [
-        .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator"),
-      ]
-    ),
-    .target(
-      name: "App",
-      dependencies: [
-        .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-        .product(name: "Dependencies", package: "swift-dependencies"),
-        "API"
-      ]
-    ),
-    .target(
-      name: "Backend",
-      dependencies: [
-        "EventSource",
-        "VirtualActor",
-        .product(name: "DistributedCluster", package: "swift-distributed-actors")
-      ]
-    ),
-    .target(
-      name: "EventSource",
-      dependencies: [
-        .product(name: "EventSourcing", package: "cluster-event-sourcing"),
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "PostgresNIO", package: "postgres-nio"),
-      ]
-    ),
-    .target(
-      name: "Persistence",
-      dependencies: [
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-        .product(name: "PostgresNIO", package: "postgres-nio"),
-      ]
-    ),
-    .target(
-      name: "VirtualActor",
-      dependencies: [
-        .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-      ]
-    ),
-    .executableTarget(
-      name: "Server",
-      dependencies: [
-        .product(name: "EventSourcing", package: "cluster-event-sourcing"),
-        .product(name: "ArgumentParser", package: "swift-argument-parser"),
-        .product(name: "Dependencies", package: "swift-dependencies"),
-        "API",
-        "Backend",
-        "Persistence",
-        "VirtualActor"
-      ]
-    ),
   ]
 )
+
+var targets: [PackageDescription.Target] = [
+  .target(
+    name: "API",
+    dependencies: [
+      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+      .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
+      .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+    ],
+    plugins: [
+      .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator"),
+    ]
+  ),
+  .target(
+    name: "App",
+    dependencies: [
+      .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      .product(name: "Dependencies", package: "swift-dependencies"),
+      "API"
+    ]
+  ),
+  .target(
+    name: "Backend",
+    dependencies: [
+      "EventSource",
+      "VirtualActor",
+      .product(name: "DistributedCluster", package: "swift-distributed-actors")
+    ]
+  ),
+  .target(
+    name: "EventSource",
+    dependencies: [
+      .product(name: "EventSourcing", package: "cluster-event-sourcing"),
+      .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+      .product(name: "PostgresNIO", package: "postgres-nio"),
+    ]
+  ),
+  .target(
+    name: "Persistence",
+    dependencies: [
+      .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+      .product(name: "PostgresNIO", package: "postgres-nio"),
+    ]
+  ),
+  .target(
+    name: "VirtualActor",
+    dependencies: [
+      .product(name: "DistributedCluster", package: "swift-distributed-actors"),
+    ]
+  ),
+  .executableTarget(
+    name: "Server",
+    dependencies: [
+      .product(name: "EventSourcing", package: "cluster-event-sourcing"),
+      .product(name: "ArgumentParser", package: "swift-argument-parser"),
+      .product(name: "Dependencies", package: "swift-dependencies"),
+      "API",
+      "Backend",
+      "Persistence",
+      "VirtualActor"
+    ]
+  ),
+]
+
+for target in targets {
+  var settings = target.swiftSettings ?? []
+  settings.append(.enableExperimentalFeature("StrictConcurrency"))
+  target.swiftSettings = settings
+}
+
+package.targets = targets

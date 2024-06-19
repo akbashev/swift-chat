@@ -9,8 +9,7 @@ public struct Room {
   
   @Dependency(\.continuousClock) var clock
   @Dependency(\.client) var client
-  
-  public typealias ChatMessage = Components.Schemas.ChatMessage
+  @Dependency(\.chatClient) var chatClient
 
   @ObservableState
   public struct State {
@@ -61,10 +60,12 @@ public struct Room {
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
+    case onDisappear
     case connect
+    case disconnect
     case alert(PresentationAction<Alert>)
     case messageToSendAdded(Message)
-    case receivedMessage(ChatMessage)
+    case receivedMessage(ChatClient.Message)
     case updatedConnectivityState(ConnectivityState)
     case sendButtonTapped
     case send([Message])
@@ -88,41 +89,55 @@ public struct Room {
       case .connect:
         switch state.connectivityState {
         case .connected, .connecting:
-          state.connectivityState = .disconnected
-          return .cancel(id: CancelId.connection)
+          return .none
         case .disconnected:
           state.connectivityState = .connecting
-          let userId = state.user.id.uuidString
-          let roomId = state.room.id.uuidString
+          let user = state.user
+          let room = state.room
           return .run { send in
-            let response = try await client.getMessages(
-              query: .init(
-                user_id: userId,
-                room_id: roomId
-              ),
-              headers: .init(
-                accept: [
-                  .init(
-                    contentType: .application_jsonl
-                  )
-                ]
+            // Handle errors, disconnection and etc. properly
+            do {
+              let messages = try await self.chatClient.connect(
+                user: user,
+                to: room
               )
-            )
-            let messageStream = try response.ok.body.application_jsonl.asDecodedJSONLines(
-              of: Room.ChatMessage.self
-            )
-            await send(.updatedConnectivityState(.connected))
-            try await withTaskCancellation(id: CancelId.connection) {
-              try await withThrowingTaskGroup(of: Void.self) { group in
-                for try await message in messageStream {
-                  group.addTask {
-                    await send(.receivedMessage(message))
+              await send(.updatedConnectivityState(.connected))
+              await withTaskCancellation(id: CancelId.connection) {
+                await withTaskGroup(of: Void.self) { group in
+                  do {
+                    for try await message in messages {
+                      group.addTask {
+                        await send(.receivedMessage(message))
+                      }
+                    }
+                  } catch {
+                    print(error)
                   }
                 }
               }
-              await send(.updatedConnectivityState(.disconnected))
+            } catch {
+              print(error)
             }
           }
+        }
+      case .onDisappear:
+        switch state.connectivityState {
+        case .connected, .connecting:
+          return .run { send in
+            await send(.disconnect)
+          }
+        case .disconnected:
+          return .none
+        }
+      case .disconnect:
+        let user = state.user
+        let room = state.room
+        return .run { send in
+          await self.chatClient.disconnect(
+            user: user,
+            from: room
+          )
+          await send(.updatedConnectivityState(.disconnected))
         }
       case let .messageToSendAdded(message):
         state.messagesToSend.append(message)
@@ -141,17 +156,30 @@ public struct Room {
         let user = state.user
         let room = state.room
         return .run { send in
-          for message in messages {
-            let chatMessage = ChatMessage(
-              user: user,
-              room: room,
-              message: message
+          do {
+            for message in messages {
+              let chatMessage = ChatClient.Message(
+                user: user,
+                room: room,
+                message: message
+              )
+              _ = try await self.chatClient.send(
+                message: chatMessage,
+                from: user,
+                to: room
+              )
+              await send(
+                .receivedMessage(chatMessage)
+              )
+            }
+            await send(
+              .didSend(.success(messages))
             )
-            _ = try await self.client.sendMessage(body: .json(chatMessage))
+          } catch {
+            await send(
+              .didSend(.failure(error))
+            )
           }
-          await send(
-            .didSend(.success(messages))
-          )
         }
       case .sendButtonTapped:
         guard !state.message.isEmpty else { return .none }
@@ -162,24 +190,25 @@ public struct Room {
         return .run { send in
           await send(.send(messagesToSend))
         }
-      case let .didSend(.failure(error)):
+      case let .didSend(result):
         state.isSending = false
-        state.alert = AlertState {
-          TextState(
-            """
-            Could not send socket message.
-            Reason: \(error.localizedDescription). 
-            Connect to the server first, and try again.
-            """
-          )
+        switch result {
+        case .failure(let error):
+          state.alert = AlertState {
+            TextState(
+              """
+              Could not send socket message.
+              Reason: \(error.localizedDescription).
+              Connect to the server first, and try again.
+              """
+            )
+          }
+        default:
+          break
         }
         return .none
       case .updatedConnectivityState(let connectivityState):
         state.connectivityState = connectivityState
-        return .none
-      case .didSend:
-        state.isSending = false
-        state.receivedMessages.removeAll()
         return .none
       case .alert:
         return .none
@@ -196,18 +225,20 @@ public struct Room {
 struct ParseError: Swift.Error {}
 
 extension MessagePresentation {
-  init(_ message: Room.ChatMessage) throws {
+  init?(_ message: ChatClient.Message) throws {
     self.user = try .init(message.user)
     self.room = try .init(message.room)
-    self.message = switch message.message {
+    switch message.message {
     case .DisconnectMessage: 
-        .disconnect
-    case .JoinMessage: 
-        .join
-    case .LeaveMessage: 
-        .leave
+      self.message = .disconnect
+    case .JoinMessage:
+      self.message = .join
+    case .LeaveMessage:
+      self.message = .leave
     case .TextMessage(let message):
-        .message(message.content, at: message.timestamp)
+      self.message = .message(message.content, at: message.timestamp)
+    case .HeartbeatMessage:
+      return nil
     }
   }
 }
@@ -234,6 +265,20 @@ extension Components.Schemas.ChatMessage {
       user: user,
       room: room,
       message: message
+    )
+  }
+  
+  init(
+    user: UserPresentation,
+    room: RoomPresentation,
+    message: Components.Schemas.HeartbeatMessage
+  ) {
+    let user = Components.Schemas.UserResponse(user)
+    let room = Components.Schemas.RoomResponse(room)
+    self.init(
+      user: user,
+      room: room,
+      message: .HeartbeatMessage(message)
     )
   }
 }

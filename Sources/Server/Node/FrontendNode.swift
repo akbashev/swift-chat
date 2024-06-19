@@ -11,17 +11,15 @@ import VirtualActor
 import OpenAPIHummingbird
 import OpenAPIRuntime
 
-/// Doesn't look quite elegant and not sure if it's a correct way of handling things.
-/// Also, how do you load balance HBApplication? 🤔
-/// How does this work in other frameworks? 🤔
 distributed actor FrontendNode {
   
   enum Error: Swift.Error {
     case noConnection
     case noDatabaseAvailable
     case environmentNotSet
+    case unsupportedType
+    case alreadyConnected
   }
-  
   
   init(
     actorSystem: ClusterSystem
@@ -35,20 +33,16 @@ distributed actor FrontendNode {
     let persistence = try await Persistence(
       type: .postgres(config)
     )
-    let serverClientConnection = ServerClientConnection(
+    let clientServerConnectionHandler = ClientServerConnectionHandler(
       actorSystem: actorSystem,
       persistence: persistence
     )
     let router = Router()
     let handler = RestApi(
-      serverClientConnection: serverClientConnection,
+      clientServerConnectionHandler: clientServerConnectionHandler,
       persistence: persistence
     )
     try handler.registerHandlers(on: router)
-    let connectionManager = ServerClientConnection(
-      actorSystem: actorSystem,
-      persistence: persistence
-    )
     var app = Application(
       router: router,
       configuration: .init(
@@ -59,7 +53,7 @@ distributed actor FrontendNode {
         serverName: "frontend"
       )
     )
-//    app.addServices(connectionManager)
+    app.addServices(clientServerConnectionHandler)
     try await app.runService()
   }
 }
@@ -108,47 +102,23 @@ extension FrontendNode {
 /// Not quite _connection_ but will call for now.
 struct RestApi: APIProtocol {
   
-  let serverClientConnection: ServerClientConnection
-  
-  func sendMessage(_ input: Operations.sendMessage.Input) async throws -> Operations.sendMessage.Output {
-    try await serverClientConnection.handleMessage(input)
-    return .ok(.init())
-  }
+  let clientServerConnectionHandler: ClientServerConnectionHandler
+  let persistence: Persistence
   
   func getMessages(_ input: Operations.getMessages.Input) async throws -> Operations.getMessages.Output {
-    let eventStream = await self.serverClientConnection.getStream(info: input)
-    // Default to `application/jsonl`, if no other content type requested through the `Accept` header.
+    let eventStream = try await self.clientServerConnectionHandler.getStream(info: input)
     let chosenContentType = input.headers.accept.sortedByQuality().first ?? .init(contentType: .application_jsonl)
     let responseBody: Operations.getMessages.Output.Ok.Body = switch chosenContentType.contentType {
-    case .application_jsonl, .other:
-      .application_jsonl(
-        .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
-      )
-    case .application_json_hyphen_seq:
-      .application_json_hyphen_seq(
-        .init(eventStream.asEncodedJSONSequence(), length: .unknown, iterationBehavior: .single)
-      )
-    case .text_event_hyphen_stream:
-      .text_event_hyphen_stream(
-        .init(
-          eventStream.map { message in
-            ServerSentEventWithJSONData(
-              event: "message",
-              data: message,
-              id: UUID().uuidString,
-              retry: 10_000
-            )
-          }.asEncodedServerSentEventsWithJSONData(),
-          length: .unknown,
-          iterationBehavior: .single
+    case .application_jsonl:
+        .application_jsonl(
+          .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
         )
-      )
+    case .other:
+      throw FrontendNode.Error.unsupportedType
     }
     return .ok(.init(body: responseBody))
   }
-  
-  let persistence: Persistence
-  
+    
   func searchRoom(_ input: API.Operations.searchRoom.Input) async throws -> API.Operations.searchRoom.Output {
     let rooms = try await persistence
       .searchRoom(query: input.query.query)

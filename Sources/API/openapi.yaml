@@ -68,52 +68,35 @@ paths:
                 items:
                   $ref: '#/components/schemas/RoomResponse'
   /chat:
-    get:
+    post:
       operationId: getMessages
       summary: Subscribe to chat updates
       parameters:
-        - in: query
+        - in: header
           name: user_id
           schema:
             type: string
             format: uuid
           required: true
-        - in: query
+        - in: header
           name: room_id
           schema:
             type: string
             format: uuid
           required: true
+      requestBody:
+        required: true
+        content:
+          application/jsonl:
+            schema:
+              $ref: '#/components/schemas/ChatMessage'
       responses:
         '200':
           description: A stream of chat updates
           content:
             application/jsonl:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatMessage'
-            application/json-seq:
-              schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/ChatMessage'
-            text/event-stream:
-              schema:
                 $ref: '#/components/schemas/ChatMessage'
-  /message:
-    post:
-      operationId: sendMessage
-      summary: Send a message from a client
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ChatMessage'
-      responses:
-        '200':
-          description: OK
 components:
   schemas:
     UserResponse:
@@ -154,6 +137,7 @@ components:
             - $ref: '#/components/schemas/TextMessage'
             - $ref: '#/components/schemas/LeaveMessage'
             - $ref: '#/components/schemas/DisconnectMessage'
+            - $ref: '#/components/schemas/HeartbeatMessage'
       required:
         - user
         - room
@@ -195,5 +179,13 @@ components:
         type:
           type: string
           enum: [disconnect]
+      required:
+        - type
+    HeartbeatMessage:
+      type: object
+      properties:
+        type:
+          type: string
+          enum: [heartbeat]
       required:
         - type
