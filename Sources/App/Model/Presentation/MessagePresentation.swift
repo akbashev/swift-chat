@@ -28,3 +28,22 @@ public enum Message: Identifiable, Equatable, Sendable {
     }
   }
 }
+
+extension MessagePresentation {
+  init?(_ message: ChatClient.Message) throws {
+    self.user = try .init(message.user)
+    self.room = try .init(message.room)
+    switch message.message {
+    case .DisconnectMessage:
+      self.message = .disconnect
+    case .JoinMessage:
+      self.message = .join
+    case .LeaveMessage:
+      self.message = .leave
+    case .TextMessage(let message):
+      self.message = .message(message.content, at: message.timestamp)
+    case .HeartbeatMessage:
+      return nil
+    }
+  }
+}
