@@ -15,6 +15,7 @@ distributed actor VirtualActorFactory: LifecycleWatch, ClusterSingleton {
 
   func terminated(actor id: ActorID) async {
     guard let virtualNode = self.virtualNodes.first(where: { $0.id == id }) else { return }
+    try? await virtualNode.removeAll()
     self.virtualNodes.remove(virtualNode)
   }
   
@@ -44,6 +45,15 @@ distributed actor VirtualActorFactory: LifecycleWatch, ClusterSingleton {
     throw Error.noActorsAvailable
   }
   
+  distributed func getNode() async throws -> VirtualNode {
+    // TODO: Round robin at least
+    guard let node = self.virtualNodes.randomElement() else {
+      // There should be always a node (at least local node), if not—something sus
+      throw Error.noNodesAvailable
+    }
+    return node
+  }
+  
   /// Actors should be cleaned automatically, but for now unfortunately manual cleaning.
   distributed func close(
     with id: ClusterSystem.ActorID
@@ -55,14 +65,6 @@ distributed actor VirtualActorFactory: LifecycleWatch, ClusterSingleton {
         }
       }
     }
-  }
-  
-  distributed func register<A: VirtualActor>(actor: A, with id: VirtualID) async throws {
-    guard let node = virtualNodes.randomElement() else {
-      // There should be always a node (at least local node), if not—something sus
-      throw Error.noNodesAvailable
-    }
-    try await node.register(actor: actor, with: id)
   }
   
   /// - Parameters:

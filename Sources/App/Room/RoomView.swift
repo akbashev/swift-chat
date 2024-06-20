@@ -71,6 +71,9 @@ public struct RoomView: View {
     .onAppear {
       store.send(.onAppear)
     }
+    .onDisappear {
+      store.send(.onDisappear)
+    }
     .navigationTitle(store.room.name)
   }
 }

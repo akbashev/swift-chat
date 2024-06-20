@@ -28,30 +28,12 @@
       }
     },
     {
-      "identity" : "compress-nio",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/adam-fowler/compress-nio.git",
-      "state" : {
-        "revision" : "2af9ad08650cba62d559bf2ba8273b80b48d3529",
-        "version" : "1.2.0"
-      }
-    },
-    {
       "identity" : "hummingbird",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
       "state" : {
         "revision" : "aed1e369c331f2c20780317e657d139e20522ada",
         "version" : "2.0.0-beta.5"
-      }
-    },
-    {
-      "identity" : "hummingbird-websocket",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/hummingbird-project/hummingbird-websocket.git",
-      "state" : {
-        "revision" : "f4d29d11c08522c5e83983ae78baade4a54e8ca0",
-        "version" : "2.0.0-beta.2"
       }
     },
     {
@@ -343,15 +325,6 @@
       }
     },
     {
-      "identity" : "swift-perception",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/pointfreeco/swift-perception",
-      "state" : {
-        "revision" : "8e8ca36c02abc7775a3ab81f9468c0df5fe22c2c",
-        "version" : "1.1.7"
-      }
-    },
-    {
       "identity" : "swift-protobuf",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-protobuf",
@@ -385,15 +358,6 @@
       "state" : {
         "revision" : "d7fe0e731499a8dcce53bf4cbbc812c8e565d3a7",
         "version" : "2.4.1"
-      }
-    },
-    {
-      "identity" : "swift-syntax",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/apple/swift-syntax",
-      "state" : {
-        "revision" : "303e5c5c36d6a558407d364878df131c3546fad8",
-        "version" : "510.0.2"
       }
     },
     {

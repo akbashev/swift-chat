@@ -1,8 +1,4 @@
-import HummingbirdWSCore
-import HummingbirdWebSocket
 import Hummingbird
-import OpenAPIHummingbird
-import OpenAPIRuntime
 import Foundation
 import API
 import Backend
@@ -12,19 +8,18 @@ import Distributed
 import DistributedCluster
 import PostgresNIO
 import VirtualActor
-import WebSocket
+import OpenAPIHummingbird
+import OpenAPIRuntime
 
-/// Doesn't look quite elegant and not sure if it's a correct way of handling things.
-/// Also, how do you load balance HBApplication? 🤔
-/// How does this work in other frameworks? 🤔
 distributed actor FrontendNode {
   
   enum Error: Swift.Error {
     case noConnection
     case noDatabaseAvailable
     case environmentNotSet
+    case unsupportedType
+    case alreadyConnected
   }
-
   
   init(
     actorSystem: ClusterSystem
@@ -38,24 +33,18 @@ distributed actor FrontendNode {
     let persistence = try await Persistence(
       type: .postgres(config)
     )
-    let router = Router()
-    let wsRouter = Router(context: BasicWebSocketRequestContext.self)
-    let handler = RestApi(persistence: persistence)
-    try handler.registerHandlers(on: router)
-    let connectionManager = WebSocketConnection(
+    let clientServerConnectionHandler = ClientServerConnectionHandler(
       actorSystem: actorSystem,
       persistence: persistence
     )
-    WebSocketApi.configure(
-      wsRouter: wsRouter,
-      connectionManager: connectionManager
+    let router = Router()
+    let handler = RestApi(
+      clientServerConnectionHandler: clientServerConnectionHandler,
+      persistence: persistence
     )
+    try handler.registerHandlers(on: router)
     var app = Application(
       router: router,
-      server: .http1WebSocketUpgrade(
-        webSocketRouter: wsRouter,
-        configuration: .init(extensions: [])
-      ),
       configuration: .init(
         address: .hostname(
           self.actorSystem.cluster.node.host,
@@ -64,7 +53,7 @@ distributed actor FrontendNode {
         serverName: "frontend"
       )
     )
-    app.addServices(connectionManager)
+    app.addServices(clientServerConnectionHandler)
     try await app.runService()
   }
 }
@@ -112,8 +101,24 @@ extension FrontendNode {
 
 /// Not quite _connection_ but will call for now.
 struct RestApi: APIProtocol {
+  
+  let clientServerConnectionHandler: ClientServerConnectionHandler
   let persistence: Persistence
-
+  
+  func getMessages(_ input: Operations.getMessages.Input) async throws -> Operations.getMessages.Output {
+    let eventStream = try await self.clientServerConnectionHandler.getStream(info: input)
+    let chosenContentType = input.headers.accept.sortedByQuality().first ?? .init(contentType: .application_jsonl)
+    let responseBody: Operations.getMessages.Output.Ok.Body = switch chosenContentType.contentType {
+    case .application_jsonl:
+        .application_jsonl(
+          .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
+        )
+    case .other:
+      throw FrontendNode.Error.unsupportedType
+    }
+    return .ok(.init(body: responseBody))
+  }
+    
   func searchRoom(_ input: API.Operations.searchRoom.Input) async throws -> API.Operations.searchRoom.Output {
     let rooms = try await persistence
       .searchRoom(query: input.query.query)

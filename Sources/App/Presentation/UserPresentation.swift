@@ -1,6 +1,6 @@
 import Foundation
 
-public struct UserPresentation: Identifiable, Codable, Equatable {
+public struct UserPresentation: Identifiable, Codable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let name: String
   
