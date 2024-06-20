@@ -1,6 +1,6 @@
 import Foundation
 
-public struct MessagePresentation: Identifiable, Equatable {
+public struct MessagePresentation: Identifiable, Equatable, Sendable {
   
   public var id: String {
     [self.user.id.uuidString, self.room.id.uuidString, message.id]
@@ -13,7 +13,7 @@ public struct MessagePresentation: Identifiable, Equatable {
   let message: Message
 }
 
-public enum Message: Identifiable, Equatable {
+public enum Message: Identifiable, Equatable, Sendable {
   case join
   case message(String, at: Date)
   case leave

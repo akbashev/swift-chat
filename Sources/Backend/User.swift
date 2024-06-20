@@ -46,20 +46,24 @@ public distributed actor User {
   }
   
   private func join(room: Room) async throws {
+    let roomInfo = try await room.info
+    guard !self.state.rooms.contains(roomInfo) else { throw User.Error.alreadyJoined }
     try await room.send(.join, from: self)
-    self.state.rooms.insert(room)
+    self.state.rooms.insert(roomInfo)
   }
   
   private func leave(room: Room) async throws {
-    guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
+    let roomInfo = try await room.info
+    guard self.state.rooms.contains(roomInfo) else { throw User.Error.roomIsNotAvailable }
     try await room.send(.leave, from: self)
-    self.state.rooms.remove(room)
+    self.state.rooms.remove(roomInfo)
   }
   
   private func disconnect(room: Room) async throws {
-    guard self.state.rooms.contains(room) else { throw User.Error.roomIsNotAvailable }
+    let roomInfo = try await room.info
+    guard self.state.rooms.contains(roomInfo) else { throw User.Error.roomIsNotAvailable }
     try await room.send(.disconnect, from: self)
-    self.state.rooms.remove(room)
+    self.state.rooms.remove(roomInfo)
   }
 }
 
@@ -96,6 +100,7 @@ extension User {
   
   public enum Error: Swift.Error {
     case roomIsNotAvailable
+    case alreadyJoined
   }
   
   public enum Output: Codable, Sendable {
@@ -103,7 +108,7 @@ extension User {
   }
 
   private struct State: Equatable {
-    var rooms: Set<Room> = .init()
+    var rooms: Set<Room.Info> = .init()
     let info: User.Info
   }
 }

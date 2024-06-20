@@ -1,6 +1,6 @@
 import Foundation
 
-public struct RoomPresentation: Identifiable, Equatable, Hashable {
+public struct RoomPresentation: Identifiable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let name: String
   public let description: String?

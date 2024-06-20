@@ -3,11 +3,9 @@ import Dependencies
 import Foundation
 import API
 
-
 @Reducer
-public struct Room {
+public struct Room: Sendable {
   
-  @Dependency(\.continuousClock) var clock
   @Dependency(\.client) var client
   @Dependency(\.chatClient) var chatClient
 
@@ -51,27 +49,28 @@ public struct Room {
     }
   }
   
-  public enum ConnectivityState: String {
+  public enum ConnectivityState: String, Sendable {
     case connected
     case connecting
     case disconnected
   }
   
-  public enum Action: BindableAction {
+  public enum Action: BindableAction, Sendable {
     case binding(BindingAction<State>)
     case onAppear
     case onDisappear
     case connect
     case disconnect
+    case reconnect
     case alert(PresentationAction<Alert>)
     case messageToSendAdded(Message)
     case receivedMessage(ChatClient.Message)
     case updatedConnectivityState(ConnectivityState)
     case sendButtonTapped
     case send([Message])
-    case didSend(Result<[Message], any Error>)
+    case didSend(Result<Void, any Error>)
     
-    public enum Alert: Equatable {}
+    public enum Alert: Equatable, Sendable {}
   }
   
   enum CancelId {
@@ -83,41 +82,12 @@ public struct Room {
     Reduce { state, action in
       switch action {
       case .onAppear:
-        return .run { send in
-          await send(.connect)
-        }
-      case .connect:
         switch state.connectivityState {
         case .connected, .connecting:
           return .none
         case .disconnected:
-          state.connectivityState = .connecting
-          let user = state.user
-          let room = state.room
           return .run { send in
-            // Handle errors, disconnection and etc. properly
-            do {
-              let messages = try await self.chatClient.connect(
-                user: user,
-                to: room
-              )
-              await send(.updatedConnectivityState(.connected))
-              await withTaskCancellation(id: CancelId.connection) {
-                await withTaskGroup(of: Void.self) { group in
-                  do {
-                    for try await message in messages {
-                      group.addTask {
-                        await send(.receivedMessage(message))
-                      }
-                    }
-                  } catch {
-                    print(error)
-                  }
-                }
-              }
-            } catch {
-              print(error)
-            }
+            await send(.connect)
           }
         }
       case .onDisappear:
@@ -128,6 +98,44 @@ public struct Room {
           }
         case .disconnected:
           return .none
+        }
+      case .connect:
+        state.connectivityState = .connecting
+        let user = state.user
+        let room = state.room
+        return .run { send in
+          // TODO: Handle errors, disconnection and etc. properly
+          do {
+            let messages = try await self.chatClient.connect(
+              user: user,
+              to: room
+            )
+            await send(.updatedConnectivityState(.connected))
+            await withTaskCancellation(id: CancelId.connection) {
+              try? await withThrowingTaskGroup(of: Void.self) { group in
+                for try await message in messages {
+                  group.addTask {
+                    await send(.receivedMessage(message))
+                  }
+                }
+              }
+            }
+            await send(.reconnect)
+          } catch {
+            await send(.reconnect)
+          }
+        }
+      case .reconnect:
+        state.connectivityState = .disconnected
+        let user = state.user
+        let room = state.room
+        return .run { send in
+          await self.chatClient.disconnect(
+            user: user,
+            from: room
+          )
+          try await Task.sleep(for: .seconds(5))
+          await send(.connect)
         }
       case .disconnect:
         let user = state.user
@@ -148,7 +156,9 @@ public struct Room {
         else {
           return .none
         }
-        state.messagesToSend.removeAll(where: { $0 == message.message })
+        if message.user == state.user {
+          state.messagesToSend.removeAll(where: { $0 == message.message })
+        }
         state.receivedMessages.append(message)
         return .none
       case .send(let messages):
@@ -156,30 +166,24 @@ public struct Room {
         let user = state.user
         let room = state.room
         return .run { send in
-          do {
-            for message in messages {
-              let chatMessage = ChatClient.Message(
-                user: user,
-                room: room,
-                message: message
-              )
-              _ = try await self.chatClient.send(
-                message: chatMessage,
-                from: user,
-                to: room
-              )
-              await send(
-                .receivedMessage(chatMessage)
-              )
-            }
-            await send(
-              .didSend(.success(messages))
+          await send(
+            .didSend(
+              Result {
+                for message in messages {
+                  let chatMessage = ChatClient.Message(
+                    user: user,
+                    room: room,
+                    message: message
+                  )
+                  _ = try await self.chatClient.send(
+                    message: chatMessage,
+                    from: user,
+                    to: room
+                  )
+                }
+              }
             )
-          } catch {
-            await send(
-              .didSend(.failure(error))
-            )
-          }
+          )
         }
       case .sendButtonTapped:
         guard !state.message.isEmpty else { return .none }

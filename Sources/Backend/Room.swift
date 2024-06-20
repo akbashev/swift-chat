@@ -8,7 +8,7 @@ import EventSourcing
 public distributed actor Room: EventSourced, VirtualActor {
   
   public typealias ActorSystem = ClusterSystem
-    
+  
   @ActorID.Metadata(\.persistenceID)
   var persistenceId: PersistenceID
 
@@ -83,9 +83,9 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   private func notifyOthersAbout(message: User.Message, from user: User) async {
     await withTaskGroup(of: Void.self) { group in
-      for other in self.state.users where user.id != other.id {
+      for user in self.state.users {
         group.addTask {
-          try? await other.handle(
+          try? await user.handle(
             response: [
               .message(
                 .init(
@@ -104,7 +104,7 @@ public distributed actor Room: EventSourced, VirtualActor {
 
 extension Room {
   
-  public struct Info: Hashable, Sendable, Codable, Equatable {
+  public struct Info: Hashable, Sendable, Codable, Equatable, VirtualActorDependency {
     
     public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
       public let rawValue: UUID

@@ -15,7 +15,34 @@ enum RoomNode: Node {
     }
     roomNode.cluster.join(host: "127.0.0.1", port: 2550) // <- here should be `seed` host and port
     try await Self.ensureCluster(roomNode, within: .seconds(10))
-    await roomNode.virtualActors.addNode(VirtualNode(actorSystem: roomNode))
+    let node = await VirtualNode(
+      actorSystem: roomNode,
+      spawner: RoomSpawner()
+    )
     try await roomNode.terminated
+  }
+}
+
+struct RoomSpawner: VirtualActorSpawner {
+  
+  enum Error: Swift.Error {
+    case unsupportedType
+  }
+  
+  func spawn<A: VirtualActor, D: VirtualActorDependency>(
+    with actorSystem: DistributedCluster.ClusterSystem,
+    id: VirtualID,
+    dependency: D
+  ) async throws -> A {
+    guard let dependency = dependency as? Room.Info else {
+      throw Error.unsupportedType
+    }
+    guard let room = await Room(
+      actorSystem: actorSystem,
+      roomInfo: dependency
+    ) as? A else {
+      throw Error.unsupportedType
+    }
+    return room
   }
 }

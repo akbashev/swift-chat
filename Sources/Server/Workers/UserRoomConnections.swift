@@ -19,11 +19,20 @@ actor UserRoomConnections {
   struct Connection {
     let user: User
     let room: Room
+    let continuation: AsyncStream<Value>.Continuation
     let listener: Task<Void, Swift.Error>
     var latestMessageDate: Date = Date()
     
     func send(message: User.Message) {
-      Task { try await self.user.send(message: message, to: self.room) }
+      Task { [weak user, weak room] in
+        guard let user, let room else { return }
+        do {
+          try await user.send(message: message, to: room)
+        } catch {
+          // TODO: Retry mechanism?
+          self.continuation.finish()
+        }
+      }
     }
   }
   
@@ -41,9 +50,11 @@ actor UserRoomConnections {
       userId: userId,
       roomId: roomId
     )
+    // TODO: Handle properly when connection is already there
     if self.connections[info] != nil {
       self.removeConnectionFor(info: info)
     }
+    
     let room = try await self.findRoom(with: info)
     let userModel = try await persistence
       .getUser(id: info.userId)
@@ -74,12 +85,17 @@ actor UserRoomConnections {
         }
       }
     )
-    try await user.send(message: .join, to: room)
-    self.connections[info] = Connection(
+    let connection = Connection(
       user: user,
       room: room,
-      listener: self.listenerForMessagesFrom(inputStream)
+      continuation: continuation,
+      listener: self.listenerForMessagesFrom(
+        info: info,
+        inputStream
+      )
     )
+    self.connections[info] = connection
+    connection.send(message: .join)
     continuation.onTermination = { _ in
       Task { [weak self] in
         try await self?.removeConnectionFor(
@@ -91,6 +107,7 @@ actor UserRoomConnections {
   }
   
   private func listenerForMessagesFrom(
+    info: Info,
     _ inputStream: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Value>
   ) -> Task<Void, Swift.Error> {
     Task { [weak self] in
@@ -98,12 +115,13 @@ actor UserRoomConnections {
         guard !Task.isCancelled else { return }
         try? await self?.handleMessage(message)
       }
+      await self?.removeConnectionFor(info: info)
     }
   }
   
   private func handleMessage(
     _ message: Value
-  ) throws {
+  ) async throws {
     let userId = message.user.id
     let roomId = message.room.id
     let info = try Info(
@@ -125,9 +143,15 @@ actor UserRoomConnections {
     default:
       break
     }
-    connection.send(
-      message: message
-    )
+    do {
+      try await connection.user.send(
+        message: message,
+        to: connection.room
+      )
+    } catch {
+      self.removeConnectionFor(info: info)
+      throw error
+    }
   }
   
   func checkConnections() {
@@ -159,7 +183,7 @@ actor UserRoomConnections {
     info: Info
   ) {
     guard let connection = self.connections[info] else { return }
-    connection.send(message: .leave)
+    connection.send(message: .disconnect)
     connection.listener.cancel()
     self.connections.removeValue(forKey: info)
   }
@@ -168,16 +192,14 @@ actor UserRoomConnections {
     with info: Info
   ) async throws -> Room {
     let roomModel = try await self.persistence.getRoom(id: info.roomId)
-    return try await self.actorSystem.virtualActors.actor(id: info.roomId.uuidString) { actorSystem in
-      await Room(
-        actorSystem: actorSystem,
-        roomInfo: .init(
-          id: info.roomId,
-          name: roomModel.name,
-          description: roomModel.description
-        )
+    return try await self.actorSystem.virtualActors.actor(
+      id: info.roomId.uuidString,
+      dependency: Room.Info(
+        id: info.roomId,
+        name: roomModel.name,
+        description: roomModel.description
       )
-    }
+    )
   }
   
   init(

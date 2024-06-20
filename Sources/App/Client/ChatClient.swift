@@ -9,6 +9,10 @@ public actor ChatClient {
   public typealias Message = Components.Schemas.ChatMessage
   static let heartbeatInterval: Duration = .seconds(10)
 
+  public enum Error: Swift.Error {
+    case connectionMissing
+  }
+  
   public struct Info: Hashable {
     let room: RoomPresentation
     let user: UserPresentation
@@ -60,8 +64,7 @@ public actor ChatClient {
       user: user
     )
     guard let connection = self.connections[info] else {
-      // TODO: Should throw and handle
-      return
+      throw Error.connectionMissing
     }
     connection.yield(message)
   }
