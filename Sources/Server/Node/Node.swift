@@ -1,26 +1,23 @@
-/// Not sure if I need it, but will put it for now.
-protocol Node {
-  static func run(host: String, port: Int) async throws 
-}
-
+import ServiceLifecycle
 import DistributedCluster
 
+/// Not sure if I need it, but will put it for now.
+protocol Node: Service {
+  var name: String { get }
+  var host: String { get set }
+  var port: Int { get set }
+  func run(on clusterSystem: ClusterSystem) async throws
+}
+
 extension Node {
-  
-  /// Waiting for all the clusters to be up
-  static func ensureCluster(_ systems: ClusterSystem..., within: Duration) async throws {
-    let nodes = Set(systems.map(\.settings.bindNode))
-    
-    try await withThrowingTaskGroup(of: Void.self) { group in
-      for system in systems {
-        group.addTask {
-          try await system.cluster.waitFor(nodes, .up, within: within)
-        }
-      }
-      // loop explicitly to propagagte any error that might have been thrown
-      for try await _ in group {
-        
-      }
+  func run() async throws {
+    let clusterSystem = await ClusterSystem(name) {
+      $0.bindHost = host
+      $0.bindPort = port
+      $0.installPlugins()
     }
+    try await self.run(
+      on: clusterSystem
+    )
   }
 }

@@ -2,24 +2,21 @@ import DistributedCluster
 import VirtualActor
 import Backend
 import EventSource
+import ServiceLifecycle
 
-enum RoomNode: Node {
-  static func run(
-    host: String,
-    port: Int
-  ) async throws {
-    let roomNode = await ClusterSystem("room") {
-      $0.bindHost = host
-      $0.bindPort = port
-      $0.installPlugins()
-    }
-    roomNode.cluster.join(host: "127.0.0.1", port: 2550) // <- here should be `seed` host and port
-    try await Self.ensureCluster(roomNode, within: .seconds(10))
-    let node = await VirtualNode(
-      actorSystem: roomNode,
+struct Backend: Service {
+  
+  let clusterSystem: ClusterSystem
+  let host: Cluster.Endpoint
+  
+  func run() async throws {
+    self.clusterSystem.cluster.join(endpoint: host)
+    try await self.clusterSystem.cluster.joined(within: .seconds(10))
+    let virtualNode = await VirtualNode(
+      actorSystem: self.clusterSystem,
       spawner: RoomSpawner()
     )
-    try await roomNode.terminated
+    try await virtualNode.actorSystem.terminated
   }
 }
 

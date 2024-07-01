@@ -13,7 +13,7 @@ import PostgresNIO
  2. https://www.erlang.org/doc/man/mnesia.html
  3. https://www.cs.cornell.edu/andru/papers/mixt
  */
-protocol Persistable {
+protocol Persistable: Sendable {
   func create(input: Persistence.Input) async throws
   func update(input: Persistence.Input) async throws
   

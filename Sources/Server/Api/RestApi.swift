@@ -1,103 +1,6 @@
-import Hummingbird
-import Foundation
 import API
-import Backend
 import Persistence
-import EventSource
-import Distributed
-import DistributedCluster
-import PostgresNIO
-import VirtualActor
-import OpenAPIHummingbird
-import OpenAPIRuntime
-
-distributed actor FrontendNode {
-  
-  enum Error: Swift.Error {
-    case noConnection
-    case noDatabaseAvailable
-    case environmentNotSet
-    case unsupportedType
-    case alreadyConnected
-  }
-  
-  init(
-    actorSystem: ClusterSystem
-  ) async throws {
-    self.actorSystem = actorSystem
-    let env = Environment()
-    let config = try Self.postgresConfig(
-      host: actorSystem.cluster.node.endpoint.host,
-      environment: env
-    )
-    let persistence = try await Persistence(
-      type: .postgres(config)
-    )
-    let clientServerConnectionHandler = ClientServerConnectionHandler(
-      actorSystem: actorSystem,
-      persistence: persistence
-    )
-    let router = Router()
-    let handler = RestApi(
-      clientServerConnectionHandler: clientServerConnectionHandler,
-      persistence: persistence
-    )
-    try handler.registerHandlers(on: router)
-    var app = Application(
-      router: router,
-      configuration: .init(
-        address: .hostname(
-          self.actorSystem.cluster.node.host,
-          port: 8080
-        ),
-        serverName: "frontend"
-      )
-    )
-    app.addServices(clientServerConnectionHandler)
-    try await app.runService()
-  }
-}
-
-extension FrontendNode: Node {
-  static func run(
-    host: String,
-    port: Int
-  ) async throws {
-    let frontendNode = await ClusterSystem("frontend") {
-      $0.bindHost = host
-      $0.bindPort = port
-      $0.installPlugins()
-    }
-    // We need references for ARC not to clean them up
-    let frontend = try await FrontendNode(
-      actorSystem: frontendNode
-    )
-    try await frontendNode.terminated
-  }
-}
-
-
-extension FrontendNode {
-  private static func postgresConfig(
-    host: String,
-    environment: Environment
-  ) throws -> PostgresConnection.Configuration {
-    guard let username = environment.get("DB_USERNAME"),
-          let password = environment.get("DB_PASSWORD"),
-          let database = environment.get("DB_NAME") else {
-      throw Self.Error.environmentNotSet
-    }
-    
-    return PostgresConnection.Configuration(
-      host: host,
-      port: 5432,
-      username: username,
-      password: password,
-      database: database,
-      tls: .disable
-    )
-  }
-}
+import struct Foundation.UUID
 
 /// Not quite _connection_ but will call for now.
 struct RestApi: APIProtocol {
@@ -114,7 +17,7 @@ struct RestApi: APIProtocol {
           .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
         )
     case .other:
-      throw FrontendNode.Error.unsupportedType
+      throw Frontend.Error.unsupportedType
     }
     return .ok(.init(body: responseBody))
   }
@@ -138,7 +41,7 @@ struct RestApi: APIProtocol {
       case .json(let payload): payload.name
       }
     else {
-      throw FrontendNode.Error.noConnection
+      throw Frontend.Error.noConnection
     }
     let id = UUID()
     try await persistence.create(
@@ -168,7 +71,7 @@ struct RestApi: APIProtocol {
       case .json(let payload): payload.name
       }
     else {
-      throw FrontendNode.Error.noConnection
+      throw Frontend.Error.noConnection
     }
     let id = UUID()
     let description = switch input.body {

@@ -15,7 +15,7 @@ public actor PostgresEventStore: EventStore {
   private let decoder: JSONDecoder
   private var persistTasks: [PersistenceTaskId: Task<Void, any Error>] = [:]
 
-  public func persistEvent<Event: Codable>(_ event: Event, id: PersistenceID) async throws {
+  public func persistEvent<Event: Sendable & Codable>(_ event: Event, id: PersistenceID) async throws {
     let nextSequenceNumber = try await self.nextSequenceNumber(for: id)
     let data = try encoder.encode(event)
     let buffer = ByteBufferAllocator().buffer(data: data)
@@ -32,7 +32,7 @@ public actor PostgresEventStore: EventStore {
     }
   }
   
-  public func eventsFor<Event: Codable>(id: PersistenceID) async throws -> [Event] {
+  public func eventsFor<Event: Sendable & Codable>(id: PersistenceID) async throws -> [Event] {
     let rows = try await connection.query(
       "SELECT * FROM events WHERE persistence_id = \(id) ORDER BY sequence_number;",
       logger: connection.logger
