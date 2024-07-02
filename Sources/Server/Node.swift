@@ -9,7 +9,7 @@ import EventSourcing
 typealias DefaultDistributedActorSystem = ClusterSystem
 
 @main
-struct Server: AsyncParsableCommand, Node {
+struct Node: AsyncParsableCommand {
   
   /**
    For simplicity you can just run `standalone` node, which will run all other nodes (frontend, room) + database.
@@ -18,7 +18,7 @@ struct Server: AsyncParsableCommand, Node {
    in swift distributed actors there is not difference which one it should be, for simplicity it's `frontend` now.
    Run it with default host. After that you can run room node with other port (e.g. 2551) and etc.,
    they will call `cluster.join` to form a cluster with default host node address.
-  */
+   */
   enum Cluster: String, ExpressibleByArgument {
     case standalone
     case frontend
@@ -34,12 +34,27 @@ struct Server: AsyncParsableCommand, Node {
   ]
   
   @Argument var cluster: Cluster
-  @Option var host: String = Server.defaultHost
-  @Option var port: Int = Server.defaultPort
+  @Option var host: String = Node.defaultHost
+  @Option var port: Int = Node.defaultPort
   var name: String {
     self.cluster.rawValue
   }
   
+  func run() async throws {
+    let clusterSystem = await ClusterSystem(self.name) {
+      $0.bindHost = host
+      $0.bindPort = port
+      $0.installPlugins()
+    }
+    try await self.run(
+      on: clusterSystem
+    )
+  }
+  
+}
+
+/// Logic to decide how to run each node cluster system
+extension Node {
   func run(on clusterSystem: ClusterSystem) async throws {
     switch self.cluster {
     case .frontend:
@@ -51,8 +66,8 @@ struct Server: AsyncParsableCommand, Node {
       let backend = Backend(
         clusterSystem: clusterSystem,
         host: .init(
-          host: Server.defaultHost,
-          port: Server.defaultPort
+          host: Node.defaultHost,
+          port: Node.defaultPort
         )
       )
       return try await backend.run()
@@ -86,11 +101,11 @@ struct Server: AsyncParsableCommand, Node {
 
 extension ClusterSystemSettings {
   mutating func installPlugins() {
-    for plugin in Server.plugins { self += plugin }
+    for plugin in Node.plugins { self += plugin }
   }
 }
 
-extension Server {
+extension Node {
   static let defaultHost: String = "127.0.0.1"
   static let defaultPort: Int = 2550
 }
