@@ -53,7 +53,7 @@ struct Frontend: Service {
           self.clusterSystem.cluster.node.host,
           port: 8080
         ),
-        serverName: "frontend"
+        serverName: self.clusterSystem.name
       )
     )
     app.addServices(clientServerConnectionHandler)
