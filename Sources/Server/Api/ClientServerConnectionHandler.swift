@@ -15,6 +15,10 @@ struct ClientServerConnectionHandler: Service {
   typealias Value = Components.Schemas.ChatMessage
   
   let userRoomConnections: UserRoomConnections
+  let heartbeatSequence = AsyncTimerSequence(
+    interval: UserRoomConnections.heartbeatInterval,
+    clock: .continuous
+  )
   
   init(
     actorSystem: ClusterSystem,
@@ -38,22 +42,12 @@ struct ClientServerConnectionHandler: Service {
         of: Value.self
       )
     }
-    
-//    do {
-      try await self.userRoomConnections.add(
-        userId: userId,
-        roomId: roomId,
-        inputStream: inputStream,
-        continuation: continuation
-      )
-//    } catch {
-//      switch error {
-//      case FrontendNode.Error.alreadyConnected:
-//        return stream
-//      default:
-//        throw error
-//      }
-//    }
+    try await self.userRoomConnections.addConnectionFor(
+      userId: userId,
+      roomId: roomId,
+      inputStream: inputStream,
+      continuation: continuation
+    )
     return stream
   }
 
@@ -62,10 +56,6 @@ struct ClientServerConnectionHandler: Service {
   }
 
   private func heartbeat() async {
-    let heartbeatSequence = AsyncTimerSequence(
-      interval: UserRoomConnections.heartbeatInterval,
-      clock: .continuous
-    )
     for await _ in heartbeatSequence {
       await self.userRoomConnections.checkConnections()
     }

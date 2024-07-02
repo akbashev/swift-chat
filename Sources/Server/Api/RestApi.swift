@@ -2,7 +2,7 @@ import API
 import Persistence
 import struct Foundation.UUID
 
-/// Not quite _connection_ but will call for now.
+/// Implementation of OpenAPI `APIProtocol` for backend
 struct RestApi: APIProtocol {
   
   let clientServerConnectionHandler: ClientServerConnectionHandler

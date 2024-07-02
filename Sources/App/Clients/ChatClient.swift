@@ -7,19 +7,16 @@ import AsyncAlgorithms
 public actor ChatClient {
   
   public typealias Message = Components.Schemas.ChatMessage
-  static let heartbeatInterval: Duration = .seconds(10)
+  private static let heartbeatInterval: Duration = .seconds(10)
 
-  public enum Error: Swift.Error {
-    case connectionMissing
-  }
-  
-  public struct Info: Hashable {
-    let room: RoomPresentation
-    let user: UserPresentation
-  }
-  
   @Dependency(\.client) var client
-  var connections: [Info: AsyncStream<Message>.Continuation] = [:]
+  private var connections: [Key: AsyncStream<Message>.Continuation] = [:]
+  private let heartbeatSequence = AsyncTimerSequence(
+    interval: ChatClient.heartbeatInterval,
+    clock: .continuous
+  )
+  
+  public init() {}
 
   public func connect(
     user: UserPresentation,
@@ -44,13 +41,13 @@ public actor ChatClient {
     let messageStream = try response.ok.body.application_jsonl.asDecodedJSONLines(
       of: Message.self
     )
-    let info = Info(
+    let key = Key(
       room: room,
       user: user
     )
-    self.connections[info] = continuation
+    self.connections[key] = continuation
     continuation.onTermination = { termination in
-      Task { [weak self] in await self?.removeConnection(info: info) }
+      Task { [weak self] in await self?.removeConnection(for: key) }
     }
     if heartbeatTask == .none {
       self.heartbeat()
@@ -59,11 +56,11 @@ public actor ChatClient {
   }
   
   public func send(message: Message, from user: UserPresentation, to room: RoomPresentation) throws {
-    let info = Info(
+    let key = Key(
       room: room,
       user: user
     )
-    guard let connection = self.connections[info] else {
+    guard let connection = self.connections[key] else {
       throw Error.connectionMissing
     }
     connection.yield(message)
@@ -73,22 +70,22 @@ public actor ChatClient {
     user: UserPresentation,
     from room: RoomPresentation
   ) {
-    let info = Info(
+    let key = Key(
       room: room,
       user: user
     )
-    self.connections[info]?.yield(
+    self.connections[key]?.yield(
       .init(
         user: user,
         room: room,
         message: .disconnect
       )
     )
-    self.removeConnection(info: info)
+    self.removeConnection(for: key)
   }
   
-  private func removeConnection(info: Info) {
-    self.connections.removeValue(forKey: info)
+  private func removeConnection(for key: Key) {
+    self.connections.removeValue(forKey: key)
     if self.connections.isEmpty {
       self.heartbeatTask?.cancel()
       self.heartbeatTask = .none
@@ -97,10 +94,6 @@ public actor ChatClient {
   
   private var heartbeatTask: Task<Void, Never>?
   private func heartbeat() {
-    let heartbeatSequence = AsyncTimerSequence(
-      interval: ChatClient.heartbeatInterval,
-      clock: .continuous
-    )
     self.heartbeatTask = Task {
       for await message in heartbeatSequence {
         for (info, connection) in self.connections {
@@ -118,6 +111,17 @@ public actor ChatClient {
   
   deinit {
     self.heartbeatTask?.cancel()
+  }
+}
+
+extension ChatClient {
+  public enum Error: Swift.Error {
+    case connectionMissing
+  }
+  
+  public struct Key: Hashable, Sendable {
+    let room: RoomPresentation
+    let user: UserPresentation
   }
 }
 

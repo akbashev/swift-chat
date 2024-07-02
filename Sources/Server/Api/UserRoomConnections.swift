@@ -10,54 +10,29 @@ actor UserRoomConnections {
   
   typealias Value = Components.Schemas.ChatMessage
   static let heartbeatInterval: Duration = .seconds(15)
-
-  struct Info: Hashable {
-    let userId: UUID
-    let roomId: UUID
-  }
-  
-  struct Connection {
-    let user: User
-    let room: Room
-    let continuation: AsyncStream<Value>.Continuation
-    let listener: Task<Void, Swift.Error>
-    var latestMessageDate: Date = Date()
-    
-    func send(message: User.Message) {
-      Task { [weak user, weak room] in
-        guard let user, let room else { return }
-        do {
-          try await user.send(message: message, to: room)
-        } catch {
-          // TODO: Retry mechanism?
-          self.continuation.finish()
-        }
-      }
-    }
-  }
   
   let actorSystem: ClusterSystem
   let persistence: Persistence
-  var connections: [Info: Connection] = [:]
+  var connections: [Key: Connection] = [:]
 
-  func add(
+  func addConnectionFor(
     userId: String,
     roomId: String,
     inputStream: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Value>,
     continuation: AsyncStream<Value>.Continuation
   ) async throws {
-    let info = try Info(
+    let key = try Key(
       userId: userId,
       roomId: roomId
     )
     // TODO: Handle properly when connection is already there
-    if self.connections[info] != nil {
-      self.removeConnectionFor(info: info)
+    if self.connections[key] != nil {
+      self.removeConnectionFor(key: key)
     }
     
-    let room = try await self.findRoom(with: info)
+    let room = try await self.findRoom(with: key)
     let userModel = try await persistence
-      .getUser(id: info.userId)
+      .getUser(id: key.userId)
     let user = User(
       actorSystem: self.actorSystem,
       userInfo: .init(
@@ -89,12 +64,12 @@ actor UserRoomConnections {
       user: user,
       room: room,
       continuation: continuation,
-      listener: self.listenerForMessagesFrom(
-        info: info,
-        inputStream
+      listener: self.listenForMessages(
+        in: inputStream,
+        key: key
       )
     )
-    self.connections[info] = connection
+    self.connections[key] = connection
     connection.send(message: .join)
     continuation.onTermination = { _ in
       Task { [weak self] in
@@ -106,16 +81,16 @@ actor UserRoomConnections {
     }
   }
   
-  private func listenerForMessagesFrom(
-    info: Info,
-    _ inputStream: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Value>
+  private func listenForMessages(
+    in inputStream: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Value>,
+    key: Key
   ) -> Task<Void, Swift.Error> {
     Task { [weak self] in
       for try await message in inputStream {
         guard !Task.isCancelled else { return }
         try? await self?.handleMessage(message)
       }
-      await self?.removeConnectionFor(info: info)
+      await self?.removeConnectionFor(key: key)
     }
   }
   
@@ -124,13 +99,13 @@ actor UserRoomConnections {
   ) async throws {
     let userId = message.user.id
     let roomId = message.room.id
-    let info = try Info(
+    let key = try Key(
       userId: userId,
       roomId: roomId
     )
-    self.connections[info]?.latestMessageDate = Date()
+    self.connections[key]?.latestMessageDate = Date()
     guard
-      let connection = self.connections[info],
+      let connection = self.connections[key],
       let message: User.Message = .init(message.message)
     else { return }
     switch message {
@@ -149,20 +124,20 @@ actor UserRoomConnections {
         to: connection.room
       )
     } catch {
-      self.removeConnectionFor(info: info)
+      self.removeConnectionFor(key: key)
       throw error
     }
   }
   
   func checkConnections() {
-    var connectionsToRemove: [Info] = []
+    var connectionsToRemove: [Key] = []
     for (info, connection) in self.connections {
       if Date().timeIntervalSince(connection.latestMessageDate) > UserRoomConnections.heartbeatInterval.timeInterval {
         connectionsToRemove.append(info)
       }
     }
-    for info in connectionsToRemove {
-      self.removeConnectionFor(info: info)
+    for key in connectionsToRemove {
+      self.removeConnectionFor(key: key)
     }
   }
   
@@ -170,32 +145,32 @@ actor UserRoomConnections {
     userId: String,
     roomId: String
   ) throws {
-    let info = try Info(
+    let key = try Key(
       userId: userId,
       roomId: roomId
     )
     self.removeConnectionFor(
-      info: info
+      key: key
     )
   }
   
   private func removeConnectionFor(
-    info: Info
+    key: Key
   ) {
-    guard let connection = self.connections[info] else { return }
+    guard let connection = self.connections[key] else { return }
     connection.send(message: .disconnect)
     connection.listener.cancel()
-    self.connections.removeValue(forKey: info)
+    self.connections.removeValue(forKey: key)
   }
   
   private func findRoom(
-    with info: Info
+    with key: Key
   ) async throws -> Room {
-    let roomModel = try await self.persistence.getRoom(id: info.roomId)
+    let roomModel = try await self.persistence.getRoom(id: key.roomId)
     return try await self.actorSystem.virtualActors.actor(
-      id: info.roomId.uuidString,
+      id: key.roomId.uuidString,
       dependency: Room.Info(
-        id: info.roomId,
+        id: key.roomId,
         name: roomModel.name,
         description: roomModel.description
       )
@@ -247,9 +222,34 @@ extension UserRoomConnections {
   enum Error: Swift.Error {
     case parseError
   }
+  
+  struct Key: Hashable {
+    let userId: UUID
+    let roomId: UUID
+  }
+  
+  struct Connection {
+    let user: User
+    let room: Room
+    let continuation: AsyncStream<Value>.Continuation
+    let listener: Task<Void, Swift.Error>
+    var latestMessageDate: Date = Date()
+    
+    func send(message: User.Message) {
+      Task { [weak user, weak room] in
+        guard let user, let room else { return }
+        do {
+          try await user.send(message: message, to: room)
+        } catch {
+          // TODO: Retry mechanism?
+          self.continuation.finish()
+        }
+      }
+    }
+  }
 }
 
-extension UserRoomConnections.Info {
+extension UserRoomConnections.Key {
   init(
     userId: String,
     roomId: String
