@@ -41,7 +41,7 @@ struct Frontend: Service {
       persistence: persistence
     )
     let router = Router()
-    let handler = RestApi(
+    let handler = Api(
       clientServerConnectionHandler: clientServerConnectionHandler,
       persistence: persistence
     )

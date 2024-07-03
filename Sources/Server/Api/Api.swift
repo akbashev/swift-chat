@@ -3,7 +3,7 @@ import Persistence
 import struct Foundation.UUID
 
 /// Implementation of OpenAPI `APIProtocol` for backend
-struct RestApi: APIProtocol {
+struct Api: APIProtocol {
   
   let clientServerConnectionHandler: ClientServerConnectionHandler
   let persistence: Persistence
