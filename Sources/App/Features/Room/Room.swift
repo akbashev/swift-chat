@@ -138,6 +138,9 @@ public struct Room: Sendable {
           await send(.connect)
         }
       case .disconnect:
+        guard state.connectivityState != .disconnected else {
+          return .none
+        }
         let user = state.user
         let room = state.room
         return .run { send in

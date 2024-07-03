@@ -111,21 +111,22 @@ actor UserRoomConnections {
     switch message {
     case .leave,
         .disconnect:
-      try self.removeConnectionFor(
-        userId: userId,
-        roomId: roomId
-      )
-    default:
-      break
-    }
-    do {
       try await connection.user.send(
         message: message,
         to: connection.room
       )
-    } catch {
-      self.removeConnectionFor(key: key)
-      throw error
+      connection.listener.cancel()
+      self.connections.removeValue(forKey: key)
+    default:
+      do {
+        try await connection.user.send(
+          message: message,
+          to: connection.room
+        )
+      } catch {
+        self.removeConnectionFor(key: key)
+        throw error
+      }
     }
   }
   
