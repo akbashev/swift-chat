@@ -20,6 +20,12 @@ public distributed actor Room: EventSourced, VirtualActor {
   
   distributed func send(_ message: User.Message, from user: User) async throws {
     let userInfo = try await user.info
+    let messageInfo = MessageInfo(
+      roomInfo: self.state.info,
+      userInfo: userInfo,
+      message: message
+    )
+    self.actorSystem.log.info("Recieved message \(message) from user \(userInfo)")
     let action = Event.Action(message)
     let event = Event.userDid(action, info: userInfo)
     do {
@@ -36,18 +42,34 @@ public distributed actor Room: EventSourced, VirtualActor {
     switch message {
     case .join:
       // Fetch all current room messages and send to user
-      await self.sendCurrentMessagesTo(user: user)
+      guard !self.state.users.contains(user) else { break }
       self.state.users.insert(user)
+      // send old messages to user
+      try? await user.handle(
+        response: self.state
+          .messages
+          .filter { $0 != messageInfo }
+          .map { .message($0) }
+      )
+      // send current message
+      await self.notifyUserAbout(
+        message: messageInfo,
+        from: userInfo
+      )
     case .leave,
         .disconnect:
+      guard self.state.users.contains(user) else { break }
       self.state.users.remove(user)
+      await self.notifyUserAbout(
+        message: messageInfo,
+        from: userInfo
+      )
     default:
-      break
+      await self.notifyUserAbout(
+        message: messageInfo,
+        from: userInfo
+      )
     }
-    await self.notifyOthersAbout(
-      message: message,
-      from: user
-    )
   }
   
   distributed public func handleEvent(_ event: Event) {
@@ -73,27 +95,13 @@ public distributed actor Room: EventSourced, VirtualActor {
     self.persistenceId = roomId
   }
   
-  private func sendCurrentMessagesTo(user: User) async {
-    try? await user.handle(
-      response: self.state
-        .messages
-        .map { .message($0) }
-    )
-  }
-  
-  private func notifyOthersAbout(message: User.Message, from user: User) async {
+  private func notifyUserAbout(message: MessageInfo, from user: User.Info) async {
     await withTaskGroup(of: Void.self) { group in
-      for user in self.state.users {
+      for other in self.state.users {
         group.addTask {
-          try? await user.handle(
+          try? await other.handle(
             response: [
-              .message(
-                .init(
-                  roomInfo: self.state.info,
-                  userInfo: user.info,
-                  message: message
-                )
-              ),
+              .message(message),
             ]
           )
         }
