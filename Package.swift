@@ -1,4 +1,4 @@
-// swift-tools-version: 5.9
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -32,7 +32,7 @@ var package = Package(
   ]
 )
 
-var targets: [PackageDescription.Target] = [
+package.targets = [
   .target(
     name: "API",
     dependencies: [
@@ -85,6 +85,7 @@ var targets: [PackageDescription.Target] = [
   .executableTarget(
     name: "Server",
     dependencies: [
+      .product(name: "Hummingbird", package: "hummingbird"),
       .product(name: "EventSourcing", package: "cluster-event-sourcing"),
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "Dependencies", package: "swift-dependencies"),
@@ -97,10 +98,9 @@ var targets: [PackageDescription.Target] = [
   ),
 ]
 
-for target in targets {
-  var settings = target.swiftSettings ?? []
-  settings.append(.enableExperimentalFeature("StrictConcurrency"))
-  target.swiftSettings = settings
-}
 
-package.targets = targets
+package.targets.forEach {
+  $0.swiftSettings = [
+    .swiftLanguageVersion(.v6),
+  ]
+}
