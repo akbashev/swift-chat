@@ -1,5 +1,5 @@
 import Foundation
-import PostgresNIO
+@preconcurrency import PostgresNIO
 import NIOCore
 import EventSourcing
 

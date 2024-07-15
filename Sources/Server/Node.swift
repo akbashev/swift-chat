@@ -1,5 +1,5 @@
 import Distributed
-import DistributedCluster
+@preconcurrency import DistributedCluster
 import ArgumentParser
 import Foundation
 import EventSource
