@@ -35,25 +35,25 @@ actor UserRoomConnections {
       .getUser(id: key.userId)
     let user = User(
       actorSystem: self.actorSystem,
-      userInfo: .init(
+      info: .init(
         id: userModel.id,
         name: userModel.name
       ),
       reply: { messages in
         for output in messages {
           let value = switch output {
-          case let .message(messageInfo):
+          case let .message(envelope):
             Value(
               user: .init(
-                id: messageInfo.userInfo.id.rawValue.uuidString,
-                name: messageInfo.userInfo.name
+                id: envelope.user.id.rawValue.uuidString,
+                name: envelope.user.name
               ),
               room: .init(
-                id: messageInfo.roomInfo.id.rawValue.uuidString,
-                name: messageInfo.roomInfo.name,
-                description: messageInfo.roomInfo.description
+                id: envelope.room.id.rawValue.uuidString,
+                name: envelope.room.name,
+                description: envelope.room.description
               ),
-              message: .init(messageInfo.message)
+              message: .init(envelope.message)
             )
           }
           continuation.yield(value)
@@ -106,7 +106,7 @@ actor UserRoomConnections {
     self.connections[key]?.latestMessageDate = Date()
     guard
       let connection = self.connections[key],
-      let message: User.Message = .init(message.message)
+      let message: Room.Message = .init(message.message)
     else { return }
     switch message {
     case .leave,
@@ -188,7 +188,7 @@ actor UserRoomConnections {
 }
 
 extension Components.Schemas.ChatMessage.messagePayload {
-  init(_ message: User.Message) {
+  init(_ message: Room.Message) {
     self = switch message {
     case .join:
       .JoinMessage(.init(_type: .join))
@@ -202,7 +202,7 @@ extension Components.Schemas.ChatMessage.messagePayload {
   }
 }
 
-extension User.Message {
+extension Room.Message {
   init?(_ message: Components.Schemas.ChatMessage.messagePayload) {
     switch message {
     case .TextMessage(let message):
@@ -236,7 +236,7 @@ extension UserRoomConnections {
     let listener: Task<Void, Swift.Error>
     var latestMessageDate: Date = Date()
     
-    func send(message: User.Message) {
+    func send(message: Room.Message) {
       Task { [weak user, weak room] in
         guard let user, let room else { return }
         do {
