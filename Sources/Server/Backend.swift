@@ -36,7 +36,7 @@ struct RoomSpawner: VirtualActorSpawner {
     }
     guard let room = await Room(
       actorSystem: actorSystem,
-      roomInfo: dependency
+      info: dependency
     ) as? A else {
       throw Error.unsupportedType
     }

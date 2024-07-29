@@ -14,101 +14,31 @@ public distributed actor User {
     get async throws { self.state.info }
   }
   
-  // API
-  distributed public func send(message: Message, to room: Room) async throws {
-    switch message {
-      case .join:
-        try await self.join(room: room)
-      case .message(let string, let date):
-        try await room.send(.message(string, at: date), from: self)
-      case .leave:
-        try await self.leave(room: room)
-      case .disconnect:
-        try await self.disconnect(room: room)
-    }
+  /// For Room I've made `send` function internal, with the goal to use `user.send` function publically.
+  /// There are two reasons for that:
+  /// 1. It's user who actually sends messages to the room.
+  /// 2. Easier handle some additional logic here in the future.
+  distributed public func send(message: Room.Message, to room: Room) async throws {
+    try await room.send(message, from: self)
+    /// You can add logic here, e.g. to store room ids where user participated.
   }
     
-  /// Response, for performance reasone this function can already accept an array.
-  distributed func handle(response: [Output]) async throws {
-    try await self.reply(response)
+  /// This is also internal, user can recieve envelopes only from room.
+  /// To improve a bit performance (sending history of messages)—this function can already accept an array of envelopes.
+  distributed func send(envelopes: [MessageEnvelope], from room: Room) async throws {
+    try await self.reply(envelopes.map { .message($0) })
+    /// we can add aditional logic to send something back to the room.
   }
   
   public init(
     actorSystem: ClusterSystem,
-    userInfo: User.Info,
+    info: User.Info,
     reply: @escaping Reply
   ) {
     self.actorSystem = actorSystem
     self.state = .init(
-      info: userInfo
+      info: info
     )
     self.reply = reply
-  }
-  
-  private func join(room: Room) async throws {
-    let roomInfo = try await room.info
-    guard !self.state.rooms.contains(roomInfo) else { throw User.Error.alreadyJoined }
-    try await room.send(.join, from: self)
-    self.state.rooms.insert(roomInfo)
-  }
-  
-  private func leave(room: Room) async throws {
-    let roomInfo = try await room.info
-    guard self.state.rooms.contains(roomInfo) else { throw User.Error.roomIsNotAvailable }
-    try await room.send(.leave, from: self)
-    self.state.rooms.remove(roomInfo)
-  }
-  
-  private func disconnect(room: Room) async throws {
-    let roomInfo = try await room.info
-    guard self.state.rooms.contains(roomInfo) else { throw User.Error.roomIsNotAvailable }
-    try await room.send(.disconnect, from: self)
-    self.state.rooms.remove(roomInfo)
-  }
-}
-
-extension User {
-  
-  public struct Info: Sendable, Hashable, Codable, Equatable {
-    
-    public struct ID: Sendable, Hashable, Codable, Equatable, RawRepresentable {
-      public let rawValue: UUID
-      
-      public init(rawValue: UUID) {
-        self.rawValue = rawValue
-      }
-    }
-    
-    public let id: ID
-    public let name: String
-    
-    public init(
-      id: UUID,
-      name: String
-    ) {
-      self.id = .init(rawValue: id)
-      self.name = name
-    }
-  }
-  
-  public enum Message: Sendable, Codable, Equatable {
-    case join
-    case message(String, at: Date)
-    case leave
-    case disconnect
-  }
-  
-  public enum Error: Swift.Error {
-    case roomIsNotAvailable
-    case alreadyJoined
-  }
-  
-  public enum Output: Codable, Sendable {
-    case message(MessageInfo)
-  }
-
-  private struct State: Equatable {
-    var rooms: Set<Room.Info> = .init()
-    let info: User.Info
   }
 }

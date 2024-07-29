@@ -8,12 +8,12 @@ public class MemoryEventStore: EventStore {
   private let encoder: JSONEncoder = JSONEncoder()
   private let decoder: JSONDecoder = JSONDecoder()
   
-  public func persistEvent<Event: Codable>(_ event: Event, id: PersistenceID) throws {
+  public func persistEvent<Event: Codable & Sendable>(_ event: Event, id: PersistenceID) throws {
     let data = try encoder.encode(event)
     self.dict[id, default: []].append(data)
   }
   
-  public func eventsFor<Event: Codable>(id: PersistenceID) throws -> [Event] {
+  public func eventsFor<Event: Codable & Sendable>(id: PersistenceID) throws -> [Event] {
     self.dict[id]?.compactMap(decoder.decode) ?? []
   }
   

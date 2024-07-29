@@ -12,17 +12,19 @@ public distributed actor Room: EventSourced, VirtualActor {
   @ActorID.Metadata(\.persistenceID)
   var persistenceId: PersistenceID
 
-  private var state: State
+  private var persistenceState: State
+  private var onlineUsers: Set<User> = .init()
   
   distributed public var info: Room.Info {
-    get async throws { self.state.info }
+    get async throws { self.persistenceState.info }
   }
   
-  distributed func send(_ message: User.Message, from user: User) async throws {
+  // MARK: `User` should send message, thus this is not public.
+  distributed func send(_ message: Message, from user: User) async throws {
     let userInfo = try await user.info
-    let messageInfo = MessageInfo(
-      roomInfo: self.state.info,
-      userInfo: userInfo,
+    let messageEnvelope = MessageEnvelope(
+      room: self.persistenceState.info,
+      user: userInfo,
       message: message
     )
     self.actorSystem.log.info("Recieved message \(message) from user \(userInfo)")
@@ -34,162 +36,70 @@ public distributed actor Room: EventSourced, VirtualActor {
       /// Otherwise—don't update the state! Order and fact of saving is important.
       try await self.emit(event: event)
     } catch {
-      // Retry?
+      // TODO: Retry?
       self.actorSystem.log.error("Emitting failed, reason: \(error)")
       throw error
     }
-    // after saving event—update other states
+    /// after saving event, we need to update other states
     switch message {
     case .join:
-      // Fetch all current room messages and send to user
-      guard !self.state.users.contains(user) else { break }
-      self.state.users.insert(user)
+      /// Let's double check not to send old messages twice
+      guard !self.onlineUsers.contains(user) else { break }
+      self.onlineUsers.insert(user)
       // send old messages to user
-      try? await user.handle(
-        response: self.state
+      try? await user.send(
+        envelopes: self.persistenceState
           .messages
-          .filter { $0 != messageInfo }
-          .map { .message($0) }
-      )
-      // send current message
-      await self.notifyUserAbout(
-        message: messageInfo,
-        from: userInfo
+          .filter { $0 != messageEnvelope },
+        from: self
       )
     case .leave,
         .disconnect:
-      guard self.state.users.contains(user) else { break }
-      self.state.users.remove(user)
-      await self.notifyUserAbout(
-        message: messageInfo,
-        from: userInfo
-      )
+      self.onlineUsers.remove(user)
     default:
-      await self.notifyUserAbout(
-        message: messageInfo,
-        from: userInfo
-      )
+      break
     }
+    /// notify everyone online about current message
+    await self.notifyEveryoneAbout(
+      messageEnvelope
+    )
   }
   
   distributed public func handleEvent(_ event: Event) {
     switch event {
     case .userDid(let action, let userInfo):
-      self.state.messages.append(
-        .init(
-          roomInfo: self.state.info,
-          userInfo: userInfo,
-          message: .init(action)
+      self.persistenceState.messages
+        .append(
+          MessageEnvelope(
+            room: self.persistenceState.info,
+            user: userInfo,
+            message: .init(action)
+          )
         )
-      )
     }
   }
   
   public init(
     actorSystem: ClusterSystem,
-    roomInfo: Room.Info
+    info: Room.Info
   ) async {
     self.actorSystem = actorSystem
-    self.state = .init(info: roomInfo)
-    let roomId = roomInfo.id.rawValue.uuidString
-    self.persistenceId = roomId
+    self.persistenceState = .init(info: info)
+    self.persistenceId = info.id.rawValue.uuidString
   }
   
-  private func notifyUserAbout(message: MessageInfo, from user: User.Info) async {
+  private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
     await withTaskGroup(of: Void.self) { group in
-      for other in self.state.users {
-        group.addTask {
-          try? await other.handle(
-            response: [
-              .message(message),
-            ]
+      for other in self.onlineUsers {
+        group.addTask { [weak other] in
+          // TODO: should we handle errors here?
+          try? await other?.send(
+            envelopes: [envelope],
+            from: self
           )
         }
+        await group.waitForAll()
       }
-    }
-  }
-}
-
-extension Room {
-  
-  public struct Info: Hashable, Sendable, Codable, Equatable, VirtualActorDependency {
-    
-    public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
-      public let rawValue: UUID
-      
-      public init(rawValue: UUID) {
-        self.rawValue = rawValue
-      }
-    }
-
-    public let id: ID
-    public let name: String
-    public let description: String?
-    
-    public init(
-      id: UUID,
-      name: String,
-      description: String?
-    ) {
-      self.id = .init(rawValue: id)
-      self.name = name
-      self.description = description
-    }
-  }
-  
-  public enum Event: Sendable, Codable, Equatable {
-    public enum Action: Sendable, Codable, Equatable {
-      case joined
-      case sentMessage(String, at: Date)
-      case left
-      case disconnected
-    }
-    case userDid(Action, info: User.Info)
-  }
-  
-  public enum Error: Swift.Error {
-    case userIsMissing
-  }
-
-  public struct State: Sendable, Codable, Equatable {
-    let info: Room.Info
-    var users: Set<User> = .init()
-    var messages: [MessageInfo] = []
-    
-    public init(
-      info: Room.Info
-    ) {
-      self.info = info
-    }
-  }
-}
-
-extension User.Message {
-  init(_ action: Room.Event.Action) {
-    self = switch action {
-    case .sentMessage(let message, let date):
-        .message(message, at: date)
-    case .left:
-        .leave
-    case .disconnected:
-        .disconnect
-    case .joined:
-        .join
-    }
-  }
-}
-
-extension Room.Event.Action {
-  init(_ message: User.Message) {
-    self = switch message {
-    case let .message(message, date):
-        .sentMessage(message, at: date)
-    case .leave:
-        .left
-    case .disconnect:
-        .disconnected
-    case .join:
-        .joined
     }
   }
 }
