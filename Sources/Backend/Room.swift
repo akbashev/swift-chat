@@ -12,18 +12,17 @@ public distributed actor Room: EventSourced, VirtualActor {
   @ActorID.Metadata(\.persistenceID)
   var persistenceId: PersistenceID
 
-  private var persistenceState: State
-  private var onlineUsers: Set<User> = .init()
+  private var state: State
   
   distributed public var info: Room.Info {
-    get async throws { self.persistenceState.info }
+    get async throws { self.state.info }
   }
   
   // MARK: `User` should send message, thus this is not public.
   distributed func receive(message: Message, from user: User) async throws {
     let userInfo = try await user.info
     let messageEnvelope = MessageEnvelope(
-      room: self.persistenceState.info,
+      room: self.state.info,
       user: userInfo,
       message: message
     )
@@ -44,18 +43,18 @@ public distributed actor Room: EventSourced, VirtualActor {
     switch message {
     case .join:
       /// Let's double check not to send old messages twice
-      guard !self.onlineUsers.contains(user) else { break }
-      self.onlineUsers.insert(user)
+      guard !self.state.onlineUsers.contains(user) else { break }
+      self.state.onlineUsers.insert(user)
       // send old messages to user
       try? await user.receive(
-        envelopes: self.persistenceState
+        envelopes: self.state
           .messages
           .filter { $0 != messageEnvelope },
         from: self
       )
     case .leave,
         .disconnect:
-      self.onlineUsers.remove(user)
+      self.state.onlineUsers.remove(user)
     default:
       break
     }
@@ -68,10 +67,10 @@ public distributed actor Room: EventSourced, VirtualActor {
   distributed public func handleEvent(_ event: Event) {
     switch event {
     case .userDid(let action, let userInfo):
-      self.persistenceState.messages
+      self.state.messages
         .append(
           MessageEnvelope(
-            room: self.persistenceState.info,
+            room: self.state.info,
             user: userInfo,
             message: .init(action)
           )
@@ -84,13 +83,14 @@ public distributed actor Room: EventSourced, VirtualActor {
     info: Room.Info
   ) async {
     self.actorSystem = actorSystem
-    self.persistenceState = .init(info: info)
+    self.state = .init(info: info)
     self.persistenceId = info.id.rawValue.uuidString
   }
   
   private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
+    let onlineUsers = self.state.onlineUsers
     await withTaskGroup(of: Void.self) { group in
-      for other in self.onlineUsers {
+      for other in onlineUsers {
         group.addTask { [weak other] in
           // TODO: should we handle errors here?
           try? await other?.receive(

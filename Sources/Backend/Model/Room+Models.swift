@@ -49,9 +49,10 @@ extension Room {
     case userIsMissing
   }
 
-  struct State: Sendable, Codable, Equatable {
+  struct State {
     let info: Room.Info
     var messages: [MessageEnvelope] = []
+    var onlineUsers: Set<User> = .init()
     
     public init(
       info: Room.Info
