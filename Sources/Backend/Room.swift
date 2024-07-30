@@ -20,7 +20,7 @@ public distributed actor Room: EventSourced, VirtualActor {
   }
   
   // MARK: `User` should send message, thus this is not public.
-  distributed func send(_ message: Message, from user: User) async throws {
+  distributed func receive(message: Message, from user: User) async throws {
     let userInfo = try await user.info
     let messageEnvelope = MessageEnvelope(
       room: self.persistenceState.info,
@@ -47,7 +47,7 @@ public distributed actor Room: EventSourced, VirtualActor {
       guard !self.onlineUsers.contains(user) else { break }
       self.onlineUsers.insert(user)
       // send old messages to user
-      try? await user.send(
+      try? await user.receive(
         envelopes: self.persistenceState
           .messages
           .filter { $0 != messageEnvelope },
@@ -93,7 +93,7 @@ public distributed actor Room: EventSourced, VirtualActor {
       for other in self.onlineUsers {
         group.addTask { [weak other] in
           // TODO: should we handle errors here?
-          try? await other?.send(
+          try? await other?.receive(
             envelopes: [envelope],
             from: self
           )
