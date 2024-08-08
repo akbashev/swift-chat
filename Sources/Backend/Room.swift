@@ -15,7 +15,7 @@ public distributed actor Room: EventSourced, VirtualActor {
   private var state: State
   
   distributed public var info: Room.Info {
-    get async throws { self.state.info }
+    self.state.info
   }
   
   // MARK: `User` should send message, thus this is not public.

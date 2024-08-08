@@ -11,7 +11,7 @@ public distributed actor User {
   private let reply: Reply
   
   distributed public var info: User.Info {
-    get async throws { self.state.info }
+    self.state.info
   }
   
   /// For Room I've made `send` function internal, with the goal to use `user.send` function publically.
