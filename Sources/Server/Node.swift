@@ -25,14 +25,6 @@ struct Node: AsyncParsableCommand {
     case room
   }
   
-  static let plugins: [any Plugin] = [
-    ClusterSingletonPlugin(),
-    ClusterJournalPlugin { _ in
-      MemoryEventStore()
-    },
-    ClusterVirtualActorsPlugin()
-  ]
-  
   @Argument var cluster: Cluster
   @Option var host: String = Node.defaultHost
   @Option var port: Int = Node.defaultPort
@@ -101,7 +93,14 @@ extension Node {
 
 extension ClusterSystemSettings {
   mutating func installPlugins() {
-    for plugin in Node.plugins { self += plugin }
+      let plugins: [any Plugin] = [
+        ClusterSingletonPlugin(),
+        ClusterJournalPlugin { _ in
+            MemoryEventStore()
+        },
+        ClusterVirtualActorsPlugin()
+      ]
+    for plugin in plugins { self += plugin }
   }
 }
 
