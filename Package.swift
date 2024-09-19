@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -6,8 +6,8 @@ import PackageDescription
 var package = Package(
   name: "swift-chat",
   platforms: [
-    .macOS("14.0"),
-    .iOS("17.0"),
+    .macOS(.v14),
+    .iOS(.v17),
   ],
   products: [
       .library(name: "App", targets: ["App"])
@@ -16,23 +16,24 @@ var package = Package(
     // Apple
     .package(url: "https://github.com/akbashev/swift-distributed-actors.git", branch: "plugin_lifecycle_hook"),
     .package(url: "https://github.com/akbashev/cluster-event-sourcing.git", branch: "main"),
-    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-openapi-generator.git", from: "1.2.1"),
-    .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.0.0"),
-    .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.0.0"),
+    .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.5.0"),
+    .package(url: "https://github.com/apple/swift-openapi-generator.git", from: "1.3.1"),
+    .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.5.0"),
+    .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.0.2"),
     .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0"),
     // Hummingbird
-    .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0-beta.2"),
-    .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0-beta.1"),
+    .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.0.0"),
+    .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0"),
     // Vapor
-    .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.18.0"),
+    .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.22.1"),
     // Pointfree.co
-    .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.10.0"),
-    .package(url: "https://github.com/pointfreeco/swift-dependencies.git", from: "1.3.0"),
-  ]
+    .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.15.0"),
+    .package(url: "https://github.com/pointfreeco/swift-dependencies.git", from: "1.4.0"),
+  ],
+  swiftLanguageModes: [.v6]
 )
 
-var targets: [PackageDescription.Target] = [
+package.targets = [
   .target(
     name: "API",
     dependencies: [
@@ -96,11 +97,3 @@ var targets: [PackageDescription.Target] = [
     ]
   ),
 ]
-
-for target in targets {
-  var settings = target.swiftSettings ?? []
-  settings.append(.enableExperimentalFeature("StrictConcurrency"))
-  target.swiftSettings = settings
-}
-
-package.targets = targets

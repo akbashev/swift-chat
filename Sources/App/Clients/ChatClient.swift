@@ -95,7 +95,7 @@ public actor ChatClient {
   private var heartbeatTask: Task<Void, Never>?
   private func heartbeat() {
     self.heartbeatTask = Task {
-      for await message in heartbeatSequence {
+      for await _ in heartbeatSequence {
         for (info, connection) in self.connections {
           connection.yield(
             Message(

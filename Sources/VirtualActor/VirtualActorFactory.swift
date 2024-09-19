@@ -58,7 +58,7 @@ distributed actor VirtualActorFactory: LifecycleWatch, ClusterSingleton {
   distributed func close(
     with id: ClusterSystem.ActorID
   ) async {
-    await withTaskGroup(of: Void.self) { group in
+    await withTaskGroup(of: Void.self) { [virtualNodes] group in
       for virtualNode in virtualNodes {
         group.addTask {
           try? await virtualNode.close(with: id)

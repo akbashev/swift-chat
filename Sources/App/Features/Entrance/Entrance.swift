@@ -88,6 +88,7 @@ public struct Entrance: Reducer {
         state.room = .init(user: state.user!, room: response)
         return .none
       case .createUser(let userName):
+        let client = self.client
         return .run { send in
           await send(
             .didCreateUser(
@@ -103,6 +104,7 @@ public struct Entrance: Reducer {
         state.sheet = .createRoom
         return .none
       case .createRoom(let name, let description):
+        let client = self.client
         return .run { send in
           await send(
             .didCreateRoom(
@@ -123,6 +125,7 @@ public struct Entrance: Reducer {
         }
       case .searchRoom(let query):
         state.isLoading = true
+        let client = self.client
         return .run { send in
           await send(
             .didSearchRoom(
@@ -178,8 +181,9 @@ public struct Entrance: Reducer {
         else {
           return .none
         }
+        let chatClient = self.chatClient
         return .run { send in
-          await self.chatClient.disconnect(
+          await chatClient.disconnect(
             user: user,
             from: room
           )

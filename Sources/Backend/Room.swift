@@ -88,14 +88,14 @@ public distributed actor Room: EventSourced, VirtualActor {
   }
   
   private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
-    let onlineUsers = self.state.onlineUsers
-    await withTaskGroup(of: Void.self) { group in
-      for other in onlineUsers {
+    let room = self
+    await withTaskGroup(of: Void.self) { [state] group in
+        for other in state.onlineUsers {
         group.addTask { [weak other] in
           // TODO: should we handle errors here?
           try? await other?.receive(
             envelopes: [envelope],
-            from: self
+            from: room
           )
         }
         await group.waitForAll()

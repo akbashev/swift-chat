@@ -2,7 +2,7 @@ import Foundation
 import DistributedCluster
 import EventSourcing
 
-public class MemoryEventStore: EventStore {
+public actor MemoryEventStore: EventStore {
   
   private var dict: [PersistenceID: [Data]] = [:]
   private let encoder: JSONEncoder = JSONEncoder()
