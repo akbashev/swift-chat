@@ -55,7 +55,7 @@ package.targets += [
     dependencies: [
       "Models",
       .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime")
+      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
     ],
     plugins: [.plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")]
   ),
@@ -72,7 +72,7 @@ package.targets += [
       .product(name: "PostgresNIO", package: "postgres-nio"),
     ]
   ),
-  
+
   // APPS
   .target(
     name: "NativeApp",
@@ -80,7 +80,7 @@ package.targets += [
       "Client",
       .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       .product(name: "Dependencies", package: "swift-dependencies"),
-      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
+      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
     ],
     swiftSettings: [
       .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
@@ -91,6 +91,7 @@ package.targets += [
     name: "CLIApp",
     dependencies: [
       "Client",
+      .product(name: "ArgumentParser", package: "swift-argument-parser"),
     ],
     swiftSettings: [
       .defaultIsolation(MainActor.self),
