@@ -1,11 +1,11 @@
-import Foundation
-import Dependencies
-import OpenAPIRuntime
 import API
 import AsyncAlgorithms
+import Dependencies
+import Foundation
+import OpenAPIRuntime
 
 public actor ChatClient {
-  
+
   public typealias Message = Components.Schemas.ChatMessage
   private static let heartbeatInterval: Duration = .seconds(10)
 
@@ -15,7 +15,7 @@ public actor ChatClient {
     interval: ChatClient.heartbeatInterval,
     clock: .continuous
   )
-  
+
   public init() {}
 
   public func connect(
@@ -54,7 +54,7 @@ public actor ChatClient {
     }
     return messageStream
   }
-  
+
   public func send(message: Message, from user: UserPresentation, to room: RoomPresentation) throws {
     let key = Key(
       room: room,
@@ -65,7 +65,7 @@ public actor ChatClient {
     }
     connection.yield(message)
   }
-  
+
   public func disconnect(
     user: UserPresentation,
     from room: RoomPresentation
@@ -83,7 +83,7 @@ public actor ChatClient {
     )
     self.removeConnection(for: key)
   }
-  
+
   private func removeConnection(for key: Key) {
     self.connections.removeValue(forKey: key)
     if self.connections.isEmpty {
@@ -91,11 +91,11 @@ public actor ChatClient {
       self.heartbeatTask = .none
     }
   }
-  
+
   private var heartbeatTask: Task<Void, Never>?
   private func heartbeat() {
     self.heartbeatTask = Task {
-      for await message in heartbeatSequence {
+      for await _ in heartbeatSequence {
         for (info, connection) in self.connections {
           connection.yield(
             Message(
@@ -108,7 +108,7 @@ public actor ChatClient {
       }
     }
   }
-  
+
   deinit {
     self.heartbeatTask?.cancel()
   }
@@ -118,7 +118,7 @@ extension ChatClient {
   public enum Error: Swift.Error {
     case connectionMissing
   }
-  
+
   public struct Key: Hashable, Sendable {
     let room: RoomPresentation
     let user: UserPresentation

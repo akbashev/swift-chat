@@ -1,13 +1,13 @@
-import SwiftUI
 import ComposableArchitecture
 import Foundation
+import SwiftUI
 
 // MARK: - Create room view
 struct CreateUserView: View {
 
   @State var name: String = ""
-  let create: (String) -> ()
-  
+  let create: (String) -> Void
+
   var body: some View {
     VStack {
       TextField("Enter user name", text: $name)

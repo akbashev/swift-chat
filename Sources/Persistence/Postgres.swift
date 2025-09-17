@@ -2,39 +2,39 @@ import Foundation
 import PostgresNIO
 
 actor Postgres: Persistable {
-  
+
   let connection: PostgresConnection
-  
+
   func create(input: Persistence.Input) async throws {
     switch input {
-      case .user(let user):
+    case .user(let user):
       try await connection.query(
         "INSERT INTO users (id, created_at, name) VALUES (\(user.id), \(user.createdAt), \(user.name))",
         logger: connection.logger
       )
-      case .room(let room):
+    case .room(let room):
       try await connection.query(
         "INSERT INTO rooms (id, created_at, name, description) VALUES (\(room.id), \(room.createdAt), \(room.name), \(room.description))",
         logger: connection.logger
       )
     }
   }
-  
+
   func update(input: Persistence.Input) async throws {
     switch input {
-      case .user(let user):
+    case .user(let user):
       try await connection.query(
         "UPDATE users SET \"name\" = \(user.name) WHERE id = \(user.id)",
         logger: connection.logger
       )
-      case .room(let room):
+    case .room(let room):
       try await connection.query(
         "UPDATE rooms SET \"name\" = \(room.name), \"description\" = \(room.description) WHERE id = \(room.id)",
         logger: connection.logger
       )
     }
   }
-  
+
   func getUser(id: UUID) async throws -> UserModel {
     let rows = try await connection.query(
       "SELECT id, created_at, name FROM users WHERE id = \(id)",
@@ -49,13 +49,16 @@ actor Postgres: Persistable {
     }
     throw Persistence.Error.userMissing(id: id)
   }
-  
+
   func getRoom(id: UUID) async throws -> RoomModel {
     let rows = try await connection.query(
       "SELECT id, created_at, name, description FROM rooms WHERE id = \(id);",
       logger: connection.logger
     )
-    for try await (id, createdAt, name, description) in rows.decode((UUID, Date, String, String?).self, context: .default) {
+    for try await (id, createdAt, name, description) in rows.decode(
+      (UUID, Date, String, String?).self,
+      context: .default
+    ) {
       return RoomModel(
         id: id,
         createdAt: createdAt,
@@ -65,7 +68,7 @@ actor Postgres: Persistable {
     }
     throw Persistence.Error.roomMissing(id: id)
   }
-  
+
   func searchRoom(query: String) async throws -> [RoomModel] {
     let query = "%" + query + "%"
     let rows = try await connection.query(
@@ -73,7 +76,10 @@ actor Postgres: Persistable {
       logger: connection.logger
     )
     var rooms: [RoomModel] = []
-    for try await (id, createdAt, name, description) in rows.decode((UUID, Date, String, String?).self, context: .default) {
+    for try await (id, createdAt, name, description) in rows.decode(
+      (UUID, Date, String, String?).self,
+      context: .default
+    ) {
       rooms.append(
         RoomModel(
           id: id,
@@ -85,7 +91,7 @@ actor Postgres: Persistable {
     }
     return rooms
   }
-  
+
   init(
     configuration: PostgresConnection.Configuration
   ) async throws {
@@ -104,10 +110,11 @@ extension Postgres {
     try await self.setupUsersTable()
     try await self.setupRoomsTable()
   }
-  
+
   func setupUsersTable() async throws {
     // get list of tables
-    let tables = try await connection
+    let tables =
+      try await connection
       .query(
         """
         SELECT tablename FROM pg_catalog.pg_tables
@@ -122,7 +129,7 @@ extension Postgres {
         return
       }
     }
-    
+
     // create table
     try await connection
       .query(
@@ -136,7 +143,7 @@ extension Postgres {
         logger: connection.logger
       )
   }
-  
+
   func setupRoomsTable() async throws {
     // get list of tables
     let tables = try await self.connection
@@ -154,7 +161,7 @@ extension Postgres {
         return
       }
     }
-    
+
     // create table
     try await self.connection
       .query(

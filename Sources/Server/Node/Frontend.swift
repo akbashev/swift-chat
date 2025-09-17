@@ -1,32 +1,30 @@
-import Hummingbird
-import Foundation
 import API
 import Backend
-import Persistence
-import EventSource
 import Distributed
 import DistributedCluster
-import PostgresNIO
-import VirtualActor
+import Foundation
+import Hummingbird
 import OpenAPIHummingbird
 import OpenAPIRuntime
+import Persistence
+import PostgresNIO
 import ServiceLifecycle
 
 struct Frontend: Service {
-  
+
   enum Error: Swift.Error {
     case noConnection
     case noDatabaseAvailable
     case unsupportedType
     case alreadyConnected
   }
-  
+
   let clusterSystem: ClusterSystem
-  
+
   init(clusterSystem: ClusterSystem) {
     self.clusterSystem = clusterSystem
   }
-  
+
   func run() async throws {
     let env = Environment()
     let config = try PostgresConfig(

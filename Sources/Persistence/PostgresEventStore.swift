@@ -1,21 +1,26 @@
-import Foundation
-import PostgresNIO
-import NIOCore
 import EventSourcing
+import Foundation
+import NIOCore
+import PostgresNIO
 
 public actor PostgresEventStore: EventStore {
-  
+
   struct PersistenceTaskId: Hashable, Identifiable, Equatable {
     let buffer: ByteBuffer
     let id: Int
   }
-  
+
   private let connection: PostgresConnection
   private let encoder: JSONEncoder
   private let decoder: JSONDecoder
   private var persistTasks: [PersistenceTaskId: Task<Void, any Error>] = [:]
 
-  public func persistEvent<Event: Sendable & Codable>(_ event: Event, id: PersistenceID) async throws {
+  public func persistEvent<Event: Sendable & Codable>(
+    _ event: Event,
+    id: PersistenceID
+  )
+    async throws
+  {
     let nextSequenceNumber = try await self.nextSequenceNumber(for: id)
     let data = try encoder.encode(event)
     let buffer = ByteBufferAllocator().buffer(data: data)
@@ -31,7 +36,7 @@ public actor PostgresEventStore: EventStore {
       )
     }
   }
-  
+
   public func eventsFor<Event: Sendable & Codable>(id: PersistenceID) async throws -> [Event] {
     let rows = try await connection.query(
       "SELECT * FROM events WHERE persistence_id = \(id) ORDER BY sequence_number;",
@@ -44,7 +49,7 @@ public actor PostgresEventStore: EventStore {
     }
     return events.compactMap(decoder.decode)
   }
-  
+
   private func nextSequenceNumber(for persistenceId: PersistenceID) async throws -> Int {
     let rows = try await connection.query(
       "SELECT MAX(sequence_number) FROM events WHERE persistence_id = \(persistenceId)",
@@ -55,8 +60,8 @@ public actor PostgresEventStore: EventStore {
     }
     return 0
   }
-  
-  init(
+
+  public init(
     connection: PostgresConnection,
     encoder: JSONEncoder = .init(),
     decoder: JSONDecoder = .init()
@@ -86,7 +91,7 @@ extension PostgresEventStore {
         return
       }
     }
-    
+
     // create table
     try await self.connection
       .query(

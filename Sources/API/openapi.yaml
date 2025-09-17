@@ -39,8 +39,7 @@ paths:
                 name:
                   type: string
                 description:
-                  type: string
-                  nullable: true
+                  type: [string, 'null']
       responses:
         '200':
           description: The created room
@@ -122,8 +121,7 @@ components:
         name:
           type: string
         description:
-          type: string
-          nullable: true
+          type: [string, 'null']
     ChatMessage:
       type: object
       properties:

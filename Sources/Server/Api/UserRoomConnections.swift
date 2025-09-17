@@ -1,16 +1,16 @@
-import Foundation
 import API
-import OpenAPIHummingbird
-import OpenAPIRuntime
 import Backend
 import DistributedCluster
+import Foundation
+import OpenAPIHummingbird
+import OpenAPIRuntime
 import Persistence
 
 actor UserRoomConnections {
-  
+
   typealias Value = Components.Schemas.ChatMessage
   static let heartbeatInterval: Duration = .seconds(15)
-  
+
   let actorSystem: ClusterSystem
   let persistence: Persistence
   var connections: [Key: Connection] = [:]
@@ -29,9 +29,10 @@ actor UserRoomConnections {
     if self.connections[key] != nil {
       self.removeConnectionFor(key: key)
     }
-    
+
     let room = try await self.findRoom(with: key)
-    let userModel = try await persistence
+    let userModel =
+      try await persistence
       .getUser(id: key.userId)
     let user = User(
       actorSystem: self.actorSystem,
@@ -41,21 +42,22 @@ actor UserRoomConnections {
       ),
       reply: { messages in
         for output in messages {
-          let value = switch output {
-          case let .message(envelope):
-            Value(
-              user: .init(
-                id: envelope.user.id.rawValue.uuidString,
-                name: envelope.user.name
-              ),
-              room: .init(
-                id: envelope.room.id.rawValue.uuidString,
-                name: envelope.room.name,
-                description: envelope.room.description
-              ),
-              message: .init(envelope.message)
-            )
-          }
+          let value =
+            switch output {
+            case let .message(envelope):
+              Value(
+                user: .init(
+                  id: envelope.user.id.rawValue.uuidString,
+                  name: envelope.user.name
+                ),
+                room: .init(
+                  id: envelope.room.id.rawValue.uuidString,
+                  name: envelope.room.name,
+                  description: envelope.room.description
+                ),
+                message: .init(envelope.message)
+              )
+            }
           continuation.yield(value)
         }
       }
@@ -80,7 +82,7 @@ actor UserRoomConnections {
       }
     }
   }
-  
+
   private func listenForMessages(
     in inputStream: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Value>,
     key: Key
@@ -93,7 +95,7 @@ actor UserRoomConnections {
       await self?.removeConnectionFor(key: key)
     }
   }
-  
+
   private func handleMessage(
     _ message: Value
   ) async throws {
@@ -106,11 +108,11 @@ actor UserRoomConnections {
     self.connections[key]?.latestMessageDate = Date()
     guard
       let connection = self.connections[key],
-      let message: Room.Message = .init(message.message)
+      let message: Backend.Room.Message = .init(message.message)
     else { return }
     switch message {
     case .leave,
-        .disconnect:
+      .disconnect:
       try await connection.user.send(
         message: message,
         to: connection.room
@@ -129,11 +131,13 @@ actor UserRoomConnections {
       }
     }
   }
-  
+
   func checkConnections() {
     var connectionsToRemove: [Key] = []
     for (info, connection) in self.connections {
-      if Date().timeIntervalSince(connection.latestMessageDate) > UserRoomConnections.heartbeatInterval.timeInterval {
+      if Date().timeIntervalSince(connection.latestMessageDate)
+        > UserRoomConnections.heartbeatInterval.timeInterval
+      {
         connectionsToRemove.append(info)
       }
     }
@@ -141,7 +145,7 @@ actor UserRoomConnections {
       self.removeConnectionFor(key: key)
     }
   }
-  
+
   private func removeConnectionFor(
     userId: String,
     roomId: String
@@ -154,7 +158,7 @@ actor UserRoomConnections {
       key: key
     )
   }
-  
+
   private func removeConnectionFor(
     key: Key
   ) {
@@ -163,21 +167,21 @@ actor UserRoomConnections {
     connection.listener.cancel()
     self.connections.removeValue(forKey: key)
   }
-  
+
   private func findRoom(
     with key: Key
-  ) async throws -> Room {
+  ) async throws -> Backend.Room {
     let roomModel = try await self.persistence.getRoom(id: key.roomId)
-    return try await self.actorSystem.virtualActors.actor(
-      id: key.roomId.uuidString,
-      dependency: Room.Info(
+    return try await self.actorSystem.virtualActors.getActor(
+      identifiedBy: .init(rawValue: key.roomId.uuidString),
+      dependency: Backend.Room.Info(
         id: key.roomId,
         name: roomModel.name,
         description: roomModel.description
       )
     )
   }
-  
+
   init(
     actorSystem: ClusterSystem,
     persistence: Persistence
@@ -188,21 +192,22 @@ actor UserRoomConnections {
 }
 
 extension Components.Schemas.ChatMessage.messagePayload {
-  init(_ message: Room.Message) {
-    self = switch message {
-    case .join:
-      .JoinMessage(.init(_type: .join))
-    case .message(let string, let at):
-      .TextMessage(.init(_type: .message, content: string, timestamp: at))
-    case .leave:
-      .LeaveMessage(.init(_type: .leave))
-    case .disconnect:
-      .DisconnectMessage(.init(_type: .disconnect))
-    }
+  init(_ message: Backend.Room.Message) {
+    self =
+      switch message {
+      case .join:
+        .JoinMessage(.init(_type: .join))
+      case .message(let string, let at):
+        .TextMessage(.init(_type: .message, content: string, timestamp: at))
+      case .leave:
+        .LeaveMessage(.init(_type: .leave))
+      case .disconnect:
+        .DisconnectMessage(.init(_type: .disconnect))
+      }
   }
 }
 
-extension Room.Message {
+extension Backend.Room.Message {
   init?(_ message: Components.Schemas.ChatMessage.messagePayload) {
     switch message {
     case .TextMessage(let message):
@@ -223,20 +228,20 @@ extension UserRoomConnections {
   enum Error: Swift.Error {
     case parseError
   }
-  
+
   struct Key: Hashable {
     let userId: UUID
     let roomId: UUID
   }
-  
+
   struct Connection {
     let user: User
-    let room: Room
+    let room: Backend.Room
     let continuation: AsyncStream<Value>.Continuation
     let listener: Task<Void, Swift.Error>
     var latestMessageDate: Date = Date()
-    
-    func send(message: Room.Message) {
+
+    func send(message: Backend.Room.Message) {
       Task { [weak user, weak room] in
         guard let user, let room else { return }
         do {

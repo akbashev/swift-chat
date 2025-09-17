@@ -3,17 +3,17 @@ import DistributedCluster
 import Foundation
 
 public distributed actor User {
-  
+
   public typealias ActorSystem = ClusterSystem
-  public typealias Reply = @Sendable ([Output]) async throws -> ()
+  public typealias Reply = @Sendable ([Output]) async throws -> Void
 
   private var state: State
   private let reply: Reply
-  
+
   distributed public var info: User.Info {
     self.state.info
   }
-  
+
   /// For Room I've made `send` function internal, with the goal to use `user.send` function publically.
   /// There are two reasons for that:
   /// 1. It's user who actually sends messages to the room.
@@ -22,14 +22,14 @@ public distributed actor User {
     try await room.receive(message: message, from: self)
     /// You can add logic here, e.g. to store room ids where user participated.
   }
-    
+
   /// This is also internal, user can recieve envelopes only from room.
   /// To improve a bit performance (sending history of messages)—this function can already accept an array of envelopes.
   distributed func receive(envelopes: [MessageEnvelope], from room: Room) async throws {
     try await self.reply(envelopes.map { .message($0) })
     /// we can add aditional logic to send something back to the room.
   }
-  
+
   public init(
     actorSystem: ClusterSystem,
     info: User.Info,

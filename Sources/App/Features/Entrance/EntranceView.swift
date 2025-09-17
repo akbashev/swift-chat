@@ -1,16 +1,16 @@
-import SwiftUI
 import ComposableArchitecture
 import Foundation
+import SwiftUI
 
 // MARK: - Feature view
 
 public struct EntranceView: View {
   @Bindable var store: StoreOf<Entrance>
-  
+
   public init(store: StoreOf<Entrance>) {
     self.store = store
   }
-  
+
   public var body: some View {
     ScrollView {
       LazyVStack {
@@ -49,11 +49,7 @@ public struct EntranceView: View {
         }
       )
     }
-    /// Regular `navigationDestination(item:_)` haven't worked here for macOS.
-    // TODO: Figure out why
-    .navigationDestinationWrapper(
-      item: $store.scope(state: \.room, action: \.room)
-    ) { store in
+    .navigationDestination(item: $store.scope(state: \.room, action: \.room)) { store in
       RoomView(store: store)
     }
     .toolbar {
@@ -75,19 +71,19 @@ public struct EntranceView: View {
 }
 
 struct RouteView: View {
-  
+
   @Environment(\.dismiss) var dismiss
-  
+
   enum Action {
     case createUser(name: String)
     case createRoom(name: String, description: String?)
   }
-  
+
   let route: Entrance.State.Navigation.SheetRoute
-  let send: (Action) -> ()
-  
+  let send: (Action) -> Void
+
   var body: some View {
-    NavigationView {
+    NavigationStack {
       switch route {
       case .createUser:
         CreateUserView { userName in
@@ -101,9 +97,7 @@ struct RouteView: View {
         .navigationTitle("Create room")
         .toolbar {
           ToolbarItem(
-            id: "navigationBarBackButton",
-            placement: .automatic,
-            showsByDefault: true
+            placement: .cancellationAction
           ) {
             Button(action: {
               withAnimation(.spring()) {
@@ -122,11 +116,11 @@ struct RouteView: View {
 }
 
 struct RoomItemView: View {
-  
+
   let name: String
   let description: String?
-  let open: () -> ()
-  
+  let open: () -> Void
+
   var body: some View {
     VStack(alignment: .leading) {
       Text(name)
@@ -140,32 +134,5 @@ struct RoomItemView: View {
     .onTapGesture {
       self.open()
     }
-  }
-}
-
-
-extension View {
-  @available(iOS, introduced: 16, deprecated: 17)
-  @available(macOS, introduced: 13, deprecated: 14)
-  @available(tvOS, introduced: 16, deprecated: 17)
-  @available(watchOS, introduced: 9, deprecated: 10)
-  @ViewBuilder
-  func navigationDestinationWrapper<D: Hashable, C: View>(
-    item: Binding<D?>,
-    @ViewBuilder destination: @escaping (D) -> C
-  ) -> some View {
-    navigationDestination(isPresented: item.isPresented) {
-      if let item = item.wrappedValue {
-        destination(item)
-      }
-    }
-  }
-}
-
-
-fileprivate extension Optional where Wrapped: Hashable {
-  var isPresented: Bool {
-    get { self != nil }
-    set { if !newValue { self = nil } }
   }
 }

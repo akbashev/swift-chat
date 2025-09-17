@@ -1,20 +1,19 @@
 import Foundation
-import VirtualActor
 
 extension Room {
-  
+
   public enum Message: Sendable, Codable, Equatable {
     case join
     case message(String, at: Date)
     case leave
     case disconnect
   }
-  
-  public struct Info: Hashable, Sendable, Codable, Equatable, VirtualActorDependency {
-    
+
+  public struct Info: Hashable, Sendable, Codable, Equatable {
+
     public struct ID: Sendable, Codable, Hashable, Equatable, RawRepresentable {
       public let rawValue: UUID
-      
+
       public init(rawValue: UUID) {
         self.rawValue = rawValue
       }
@@ -23,7 +22,7 @@ extension Room {
     public let id: ID
     public let name: String
     public let description: String?
-    
+
     public init(
       id: UUID,
       name: String,
@@ -34,7 +33,7 @@ extension Room {
       self.description = description
     }
   }
-  
+
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
       case joined
@@ -44,7 +43,7 @@ extension Room {
     }
     case userDid(Action, info: User.Info)
   }
-  
+
   public enum Error: Swift.Error {
     case userIsMissing
   }
@@ -53,7 +52,7 @@ extension Room {
     let info: Room.Info
     var messages: [MessageEnvelope] = []
     var onlineUsers: Set<User> = .init()
-    
+
     public init(
       info: Room.Info
     ) {

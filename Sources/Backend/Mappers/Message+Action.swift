@@ -1,29 +1,31 @@
 extension Room.Message {
   init(_ action: Room.Event.Action) {
-    self = switch action {
-    case .sentMessage(let message, let date):
+    self =
+      switch action {
+      case .sentMessage(let message, let date):
         .message(message, at: date)
-    case .left:
+      case .left:
         .leave
-    case .disconnected:
+      case .disconnected:
         .disconnect
-    case .joined:
+      case .joined:
         .join
-    }
+      }
   }
 }
 
 extension Room.Event.Action {
   init(_ message: Room.Message) {
-    self = switch message {
-    case let .message(message, date):
+    self =
+      switch message {
+      case let .message(message, date):
         .sentMessage(message, at: date)
-    case .leave:
+      case .leave:
         .left
-    case .disconnect:
+      case .disconnect:
         .disconnected
-    case .join:
+      case .join:
         .joined
-    }
+      }
   }
 }

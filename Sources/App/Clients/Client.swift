@@ -1,14 +1,14 @@
 import API
-import OpenAPIURLSession
+import ComposableArchitecture
 import Dependencies
 import Foundation
-import ComposableArchitecture
+import OpenAPIURLSession
 
 extension Client: DependencyKey {
   public static let liveValue: Client = {
     @Shared(.appStorage("host")) var host: String?
     let baseUrl = host ?? "http://localhost:8080"
-    
+
     return Client(
       serverURL: URL(string: baseUrl)!,
       transport: URLSessionTransport()

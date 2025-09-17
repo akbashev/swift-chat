@@ -1,21 +1,21 @@
-import SwiftUI
-import ComposableArchitecture
 import API
+import ComposableArchitecture
+import SwiftUI
 
 @Reducer
-public struct Entrance: Reducer {
-  
+public struct Entrance: Reducer, Sendable {
+
   @Dependency(\.client) var client
   @Dependency(\.chatClient) var chatClient
 
   @ObservableState
   public struct State {
-    
+
     enum Navigation: Equatable, Identifiable {
       enum SheetRoute: Equatable, Identifiable {
         case createUser
         case createRoom
-        
+
         public var id: String {
           switch self {
           case .createUser: "createUser"
@@ -23,20 +23,20 @@ public struct Entrance: Reducer {
           }
         }
       }
-      
+
       enum PopoverRoute: Equatable, Identifiable {
         case error(String)
-        
+
         public var id: String {
           switch self {
           case .error(let description): description
           }
         }
       }
-      
+
       case sheet(SheetRoute)
       case popover(PopoverRoute)
-      
+
       var id: String {
         switch self {
         case .sheet(let route): "sheet_\(route.id)"
@@ -44,7 +44,7 @@ public struct Entrance: Reducer {
         }
       }
     }
-    
+
     @Shared(.fileStorage(.user)) var user: UserPresentation?
 
     @Presents var room: Room.State?
@@ -53,10 +53,10 @@ public struct Entrance: Reducer {
     var query: String = ""
     var rooms: [RoomPresentation] = []
     var isLoading: Bool = false
-      
+
     public init() {}
   }
-  
+
   public enum Action: BindableAction {
     case binding(BindingAction<State>)
     case onAppear
@@ -70,11 +70,11 @@ public struct Entrance: Reducer {
     case didSearchRoom(Result<[RoomPresentation], any Error>)
     case room(PresentationAction<Room.Action>)
   }
-  
+
   enum CancellationId: Hashable {
     case searchRoom
   }
-  
+
   public var body: some Reducer<State, Action> {
     BindingReducer()
     Reduce { state, action in
@@ -138,7 +138,7 @@ public struct Entrance: Reducer {
           )
         }
       case let .didCreateUser(.success(user)):
-        state.user = user
+        state.$user.withLock { $0 = user }
         state.sheet = .none
         return .none
       case .didCreateUser(.failure):
@@ -172,7 +172,7 @@ public struct Entrance: Reducer {
           }
         }
       case .room(.dismiss):
-        guard 
+        guard
           let room = state.room?.room,
           let user = state.user
         else {
@@ -185,15 +185,15 @@ public struct Entrance: Reducer {
           )
         }
       case .binding(_),
-          .room(_):
+        .room(_):
         return .none
       }
     }
-    .ifLet(\.$room, action: /Action.room) {
+    .ifLet(\.$room, action: \.room) {
       Room()
     }
   }
-  
+
   public init() {}
 }
 

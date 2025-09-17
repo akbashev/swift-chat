@@ -5,7 +5,7 @@ public struct RoomModel: Sendable, Codable, Equatable {
   public let createdAt: Date
   public let name: String
   public let description: String?
-  
+
   public init(
     id: UUID,
     createdAt: Date,

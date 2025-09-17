@@ -1,20 +1,20 @@
+import API
 import ComposableArchitecture
 import Dependencies
 import Foundation
-import API
 
 @Reducer
 public struct Room: Sendable {
-  
+
   @Dependency(\.client) var client
   @Dependency(\.chatClient) var chatClient
 
   @ObservableState
   public struct State {
-    
+
     let room: RoomPresentation
     let user: UserPresentation
-    
+
     var alert: AlertState<Action.Alert>?
     var message: String = ""
     var isSending: Bool = false
@@ -31,7 +31,7 @@ public struct Room: Sendable {
           }
         }
     }
-    
+
     public init(
       user: UserPresentation,
       room: RoomPresentation,
@@ -48,13 +48,13 @@ public struct Room: Sendable {
       self.receivedMessages = receivedMessages
     }
   }
-  
+
   public enum ConnectivityState: String, Sendable {
     case connected
     case connecting
     case disconnected
   }
-  
+
   public enum Action: BindableAction, Sendable {
     case binding(BindingAction<State>)
     case onAppear
@@ -69,14 +69,14 @@ public struct Room: Sendable {
     case sendButtonTapped
     case send([Message])
     case didSend(Result<Void, any Error>)
-    
+
     public enum Alert: Equatable, Sendable {}
   }
-  
+
   enum CancelId {
     case connection
   }
-  
+
   public var body: some Reducer<State, Action> {
     BindingReducer()
     Reduce { state, action in
@@ -223,8 +223,8 @@ public struct Room: Sendable {
         return .none
       }
     }
-    .ifLet(\.alert, action: /Action.alert)
+    .ifLet(\.alert, action: \.alert)
   }
-  
+
   public init() {}
 }
