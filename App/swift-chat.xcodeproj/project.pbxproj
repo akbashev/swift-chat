@@ -7,10 +7,10 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		71342E842E7B31CD00B0F70D /* NativeApp in Frameworks */ = {isa = PBXBuildFile; productRef = 71342E832E7B31CD00B0F70D /* NativeApp */; };
 		716029612A9287B100D2B0B0 /* Main.swift in Sources */ = {isa = PBXBuildFile; fileRef = 716029602A9287B100D2B0B0 /* Main.swift */; };
 		716029652A9287B600D2B0B0 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 716029642A9287B600D2B0B0 /* Assets.xcassets */; };
 		716029692A9287B600D2B0B0 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 716029682A9287B600D2B0B0 /* Preview Assets.xcassets */; };
-		71C9D3BC2A940C4100D57B59 /* App in Frameworks */ = {isa = PBXBuildFile; productRef = 71C9D3BB2A940C4100D57B59 /* App */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -28,7 +28,7 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				71C9D3BC2A940C4100D57B59 /* App in Frameworks */,
+				71342E842E7B31CD00B0F70D /* NativeApp in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -97,7 +97,7 @@
 			);
 			name = "swift-chat";
 			packageProductDependencies = (
-				71C9D3BB2A940C4100D57B59 /* App */,
+				71342E832E7B31CD00B0F70D /* NativeApp */,
 			);
 			productName = "swift-chat";
 			productReference = 7160295D2A9287B100D2B0B0 /* swift-chat.app */;
@@ -380,9 +380,9 @@
 /* End XCConfigurationList section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		71C9D3BB2A940C4100D57B59 /* App */ = {
+		71342E832E7B31CD00B0F70D /* NativeApp */ = {
 			isa = XCSwiftPackageProductDependency;
-			productName = App;
+			productName = NativeApp;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

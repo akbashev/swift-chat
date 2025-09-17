@@ -1,0 +1,6 @@
+generate:
+  - client
+accessModifier: public
+namingStrategy: idiomatic
+additionalImports:
+  - Models

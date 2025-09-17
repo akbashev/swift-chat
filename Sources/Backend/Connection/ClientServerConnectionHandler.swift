@@ -1,18 +1,17 @@
-import API
 import AsyncAlgorithms
-import Backend
 import DistributedCluster
 import Foundation
 import Hummingbird
+import Models
 import OpenAPIHummingbird
 import OpenAPIRuntime
 import Persistence
 import PostgresNIO
 import ServiceLifecycle
 
-struct ClientServerConnectionHandler: Service {
+public struct ClientServerConnectionHandler: Service {
 
-  typealias Value = Components.Schemas.ChatMessage
+  typealias Value = ChatMessage
 
   let userRoomConnections: UserRoomConnections
   let heartbeatSequence = AsyncTimerSequence(
@@ -20,7 +19,7 @@ struct ClientServerConnectionHandler: Service {
     clock: .continuous
   )
 
-  init(
+  public init(
     actorSystem: ClusterSystem,
     persistence: Persistence
   ) {
@@ -31,14 +30,14 @@ struct ClientServerConnectionHandler: Service {
   }
 
   func getStream(
-    info: Operations.getMessages.Input
+    info: Operations.GetMessages.Input
   ) async throws -> AsyncStream<Value> {
-    let userId = info.headers.user_id
-    let roomId = info.headers.room_id
+    let userId = info.headers.userId
+    let roomId = info.headers.roomId
     let (stream, continuation) = AsyncStream<Value>.makeStream()
     let inputStream =
       switch info.body {
-      case .application_jsonl(let body):
+      case .applicationJsonl(let body):
         body.asDecodedJSONLines(
           of: Value.self
         )
@@ -52,7 +51,7 @@ struct ClientServerConnectionHandler: Service {
     return stream
   }
 
-  func run() async throws {
+  public func run() async throws {
     await self.heartbeat()
   }
 

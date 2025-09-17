@@ -1,4 +1,4 @@
-import API
+import Models
 
 extension ChatClient.Message {
   init(
@@ -6,9 +6,9 @@ extension ChatClient.Message {
     room: RoomPresentation,
     message: Message
   ) {
-    let user = Components.Schemas.UserResponse(user)
-    let room = Components.Schemas.RoomResponse(room)
-    let message: Components.Schemas.ChatMessage.messagePayload =
+    let user = UserResponse(user)
+    let room = RoomResponse(room)
+    let message: ChatMessage.MessagePayload =
       switch message {
       case .disconnect:
         .DisconnectMessage(.init(_type: .disconnect))
@@ -29,10 +29,10 @@ extension ChatClient.Message {
   init(
     user: UserPresentation,
     room: RoomPresentation,
-    message: Components.Schemas.HeartbeatMessage
+    message: HeartbeatMessage
   ) {
-    let user = Components.Schemas.UserResponse(user)
-    let room = Components.Schemas.RoomResponse(room)
+    let user = UserResponse(user)
+    let room = RoomResponse(room)
     self.init(
       user: user,
       room: room,

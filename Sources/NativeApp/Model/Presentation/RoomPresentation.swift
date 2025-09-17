@@ -1,5 +1,5 @@
-import API
 import Foundation
+import Models
 
 public struct RoomPresentation: Identifiable, Equatable, Hashable, Sendable {
   public let id: UUID
@@ -14,14 +14,14 @@ public struct RoomPresentation: Identifiable, Equatable, Hashable, Sendable {
 }
 
 extension RoomPresentation {
-  init(_ output: Operations.createRoom.Output) throws {
+  init(_ output: Operations.CreateRoom.Output) throws {
     let payload = try output.ok.body.json
     try self.init(payload)
   }
 }
 
 extension RoomPresentation {
-  init(_ response: Components.Schemas.RoomResponse) throws {
+  init(_ response: RoomResponse) throws {
     guard
       let id = UUID(uuidString: response.id)
     else {

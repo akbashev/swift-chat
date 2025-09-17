@@ -1,12 +1,12 @@
-import API
 import AsyncAlgorithms
 import Dependencies
 import Foundation
+import Models
 import OpenAPIRuntime
 
 public actor ChatClient {
 
-  public typealias Message = Components.Schemas.ChatMessage
+  public typealias Message = ChatMessage
   private static let heartbeatInterval: Duration = .seconds(10)
 
   @Dependency(\.client) var client
@@ -22,12 +22,12 @@ public actor ChatClient {
     user: UserPresentation,
     to room: RoomPresentation
   ) async throws -> AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Message> {
-    let (stream, continuation) = AsyncStream<Components.Schemas.ChatMessage>.makeStream()
-    let headers = Operations.getMessages.Input.Headers(
-      user_id: user.id.uuidString,
-      room_id: room.id.uuidString
+    let (stream, continuation) = AsyncStream<ChatMessage>.makeStream()
+    let headers = Operations.GetMessages.Input.Headers(
+      userId: user.id.uuidString,
+      roomId: room.id.uuidString
     )
-    let body: Operations.getMessages.Input.Body = .application_jsonl(
+    let body: Operations.GetMessages.Input.Body = .applicationJsonl(
       .init(
         stream.asEncodedJSONLines(),
         length: .unknown,
@@ -38,7 +38,7 @@ public actor ChatClient {
       headers: headers,
       body: body
     )
-    let messageStream = try response.ok.body.application_jsonl.asDecodedJSONLines(
+    let messageStream = try response.ok.body.applicationJsonl.asDecodedJSONLines(
       of: Message.self
     )
     let key = Key(

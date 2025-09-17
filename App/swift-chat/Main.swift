@@ -1,5 +1,5 @@
 import SwiftUI
-import App
+import NativeApp
 import ComposableArchitecture
 
 @main

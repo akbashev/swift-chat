@@ -1,4 +1,3 @@
-import API
 import Backend
 import Distributed
 import DistributedCluster
@@ -11,13 +10,6 @@ import PostgresNIO
 import ServiceLifecycle
 
 struct Frontend: Service {
-
-  enum Error: Swift.Error {
-    case noConnection
-    case noDatabaseAvailable
-    case unsupportedType
-    case alreadyConnected
-  }
 
   let clusterSystem: ClusterSystem
 

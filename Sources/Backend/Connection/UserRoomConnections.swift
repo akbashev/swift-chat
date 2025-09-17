@@ -1,14 +1,13 @@
-import API
-import Backend
 import DistributedCluster
 import Foundation
+import Models
 import OpenAPIHummingbird
 import OpenAPIRuntime
 import Persistence
 
 actor UserRoomConnections {
 
-  typealias Value = Components.Schemas.ChatMessage
+  typealias Value = ChatMessage
   static let heartbeatInterval: Duration = .seconds(15)
 
   let actorSystem: ClusterSystem
@@ -96,9 +95,7 @@ actor UserRoomConnections {
     }
   }
 
-  private func handleMessage(
-    _ message: Value
-  ) async throws {
+  private func handleMessage(_ message: Value) async throws {
     let userId = message.user.id
     let roomId = message.room.id
     let key = try Key(
@@ -191,7 +188,7 @@ actor UserRoomConnections {
   }
 }
 
-extension Components.Schemas.ChatMessage.messagePayload {
+extension ChatMessage.MessagePayload {
   init(_ message: Backend.Room.Message) {
     self =
       switch message {
@@ -208,7 +205,7 @@ extension Components.Schemas.ChatMessage.messagePayload {
 }
 
 extension Backend.Room.Message {
-  init?(_ message: Components.Schemas.ChatMessage.messagePayload) {
+  init?(_ message: ChatMessage.MessagePayload) {
     switch message {
     case .TextMessage(let message):
       self = .message(message.content, at: message.timestamp)

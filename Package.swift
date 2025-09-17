@@ -10,7 +10,7 @@ var package = Package(
     .iOS("18.0"),
   ],
   products: [
-    .library(name: "App", targets: ["App"])
+    .library(name: "NativeApp", targets: ["NativeApp"])
   ]
 )
 
@@ -36,37 +36,33 @@ package.dependencies += [
 ]
 
 package.targets += [
-  .target(
-    name: "API",
-    dependencies: [
-      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
-      .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
-      .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
-    ],
-    plugins: [
-      .plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")
-    ]
-  ),
-  .target(
-    name: "App",
-    dependencies: [
-      .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-      .product(name: "Dependencies", package: "swift-dependencies"),
-      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-      "API",
-    ],
-    swiftSettings: [
-      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-      .enableUpcomingFeature("InferIsolatedConformances"),
-    ]
-  ),
+  // Modules
   .target(
     name: "Backend",
     dependencies: [
+      "Models",
       "Persistence",
+      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
+      .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
+      .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
       .product(name: "VirtualActors", package: "cluster-virtual-actors"),
       .product(name: "DistributedCluster", package: "swift-distributed-actors"),
-    ]
+    ],
+    plugins: [.plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")]
+  ),
+  .target(
+    name: "Client",
+    dependencies: [
+      "Models",
+      .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+      .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime")
+    ],
+    plugins: [.plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")]
+  ),
+  .target(
+    name: "Models",
+    dependencies: [.product(name: "OpenAPIRuntime", package: "swift-openapi-runtime")],
+    plugins: [.plugin(name: "OpenAPIGenerator", package: "swift-openapi-generator")]
   ),
   .target(
     name: "Persistence",
@@ -76,13 +72,38 @@ package.targets += [
       .product(name: "PostgresNIO", package: "postgres-nio"),
     ]
   ),
+  
+  // APPS
+  .target(
+    name: "NativeApp",
+    dependencies: [
+      "Client",
+      .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      .product(name: "Dependencies", package: "swift-dependencies"),
+      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms")
+    ],
+    swiftSettings: [
+      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+      .enableUpcomingFeature("InferIsolatedConformances"),
+    ]
+  ),
   .executableTarget(
-    name: "Server",
+    name: "CLIApp",
+    dependencies: [
+      "Client",
+    ],
+    swiftSettings: [
+      .defaultIsolation(MainActor.self),
+      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+      .enableUpcomingFeature("InferIsolatedConformances"),
+    ]
+  ),
+  .executableTarget(
+    name: "ServerApp",
     dependencies: [
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "Dependencies", package: "swift-dependencies"),
       .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-      "API",
       "Backend",
     ]
   ),

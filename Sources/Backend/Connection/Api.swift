@@ -1,44 +1,58 @@
-import API
+import Foundation
+import Models
 import Persistence
 
-import struct Foundation.UUID
-
 /// Implementation of OpenAPI `APIProtocol` for backend
-struct Api: APIProtocol {
+public struct Api: APIProtocol {
+
+  enum Error: Swift.Error {
+    case noConnection
+    case noDatabaseAvailable
+    case unsupportedType
+    case alreadyConnected
+  }
 
   let clientServerConnectionHandler: ClientServerConnectionHandler
   let persistence: Persistence
 
-  func getMessages(
-    _ input: Operations.getMessages.Input
+  public init(
+    clientServerConnectionHandler: ClientServerConnectionHandler,
+    persistence: Persistence
+  ) {
+    self.clientServerConnectionHandler = clientServerConnectionHandler
+    self.persistence = persistence
+  }
+
+  public func getMessages(
+    _ input: Operations.GetMessages.Input
   ) async throws
-    -> Operations.getMessages.Output
+    -> Operations.GetMessages.Output
   {
     let eventStream = try await self.clientServerConnectionHandler.getStream(info: input)
     let chosenContentType =
-      input.headers.accept.sortedByQuality().first ?? .init(contentType: .application_jsonl)
-    let responseBody: Operations.getMessages.Output.Ok.Body =
+      input.headers.accept.sortedByQuality().first ?? .init(contentType: .applicationJsonl)
+    let responseBody: Operations.GetMessages.Output.Ok.Body =
       switch chosenContentType.contentType {
-      case .application_jsonl:
-        .application_jsonl(
+      case .applicationJsonl:
+        .applicationJsonl(
           .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
         )
       case .other:
-        throw Frontend.Error.unsupportedType
+        throw Api.Error.unsupportedType
       }
     return .ok(.init(body: responseBody))
   }
 
-  func searchRoom(
-    _ input: API.Operations.searchRoom.Input
+  public func searchRoom(
+    _ input: Operations.SearchRoom.Input
   ) async throws
-    -> API.Operations.searchRoom.Output
+    -> Operations.SearchRoom.Output
   {
     let rooms =
       try await persistence
       .searchRoom(query: input.query.query)
       .map {
-        Components.Schemas.RoomResponse(
+        RoomResponse(
           id: $0.id.uuidString,
           name: $0.name,
           description: $0.description
@@ -47,18 +61,16 @@ struct Api: APIProtocol {
     return .ok(.init(body: .json(rooms)))
   }
 
-  func createUser(
-    _ input: API.Operations.createUser.Input
-  ) async throws
-    -> API.Operations.createUser.Output
-  {
+  public func createUser(
+    _ input: Operations.CreateUser.Input
+  ) async throws -> Operations.CreateUser.Output {
     guard
       let name =
         switch input.body {
         case .json(let payload): payload.name
         }
     else {
-      throw Frontend.Error.noConnection
+      throw Api.Error.noConnection
     }
     let id = UUID()
     try await persistence.create(
@@ -82,14 +94,14 @@ struct Api: APIProtocol {
     )
   }
 
-  func createRoom(_ input: Operations.createRoom.Input) async throws -> Operations.createRoom.Output {
+  public func createRoom(_ input: Operations.CreateRoom.Input) async throws -> Operations.CreateRoom.Output {
     guard
       let name =
         switch input.body {
         case .json(let payload): payload.name
         }
     else {
-      throw Frontend.Error.noConnection
+      throw Api.Error.noConnection
     }
     let id = UUID()
     let description =
