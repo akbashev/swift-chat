@@ -197,5 +197,5 @@ public struct Entrance: Reducer, Sendable {
 }
 
 extension URL {
-  static let user = URL.documentsDirectory.appending(component: "user.json")
+  static let user = URL.documentsDirectory.appending(component: "swift-chat-user.json")
 }

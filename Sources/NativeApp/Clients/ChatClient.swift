@@ -78,7 +78,7 @@ public actor ChatClient {
       .init(
         user: user,
         room: room,
-        message: .disconnect
+        message: .disconnect(Date())
       )
     )
     self.removeConnection(for: key)
@@ -101,7 +101,7 @@ public actor ChatClient {
             Message(
               user: info.user,
               room: info.room,
-              message: .init(_type: .heartbeat)
+              message: .init(heartbeatAt: Date())
             )
           )
         }

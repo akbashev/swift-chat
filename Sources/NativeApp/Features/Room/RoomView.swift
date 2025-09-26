@@ -24,8 +24,6 @@ public struct RoomView: View {
                   Text("\(response.user.name) joined the chat. 🎉🥳")
                 case .disconnect:
                   Text("\(response.user.name) disconnected. 💤😴")
-                case .leave:
-                  Text("\(response.user.name) left the chat. 👋🥲")
                 case .message(let message, _) where response.user == store.user:
                   UserMessage(message: message)
                 case .message(let message, _):

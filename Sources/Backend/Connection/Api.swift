@@ -1,6 +1,11 @@
+import AsyncAlgorithms
 import Foundation
+import HummingbirdCore
+import HummingbirdWebSocket
 import Models
 import Persistence
+import ServiceLifecycle
+import WSCore
 
 /// Implementation of OpenAPI `APIProtocol` for backend
 public struct Api: APIProtocol {
@@ -10,16 +15,21 @@ public struct Api: APIProtocol {
     case noDatabaseAvailable
     case unsupportedType
     case alreadyConnected
+    case unexpectedServerError
   }
 
-  let clientServerConnectionHandler: ClientServerConnectionHandler
+  let userRoomConnections: UserRoomConnections
   let persistence: Persistence
+  let heartbeatSequence = AsyncTimerSequence(
+    interval: .seconds(15),
+    clock: .continuous
+  )
 
   public init(
-    clientServerConnectionHandler: ClientServerConnectionHandler,
+    userRoomConnections: UserRoomConnections,
     persistence: Persistence
   ) {
-    self.clientServerConnectionHandler = clientServerConnectionHandler
+    self.userRoomConnections = userRoomConnections
     self.persistence = persistence
   }
 
@@ -28,14 +38,65 @@ public struct Api: APIProtocol {
   ) async throws
     -> Operations.GetMessages.Output
   {
-    let eventStream = try await self.clientServerConnectionHandler.getStream(info: input)
+    guard
+      let userId = UUID(uuidString: input.headers.userId),
+      let roomId = UUID(uuidString: input.headers.roomId)
+    else {
+      throw Api.Error.unsupportedType
+    }
+
+    let inputStream =
+      switch input.body {
+      case .applicationJsonl(let body):
+        body.asDecodedJSONLines(
+          of: ChatMessage.self
+        )
+      }
+    let request = UserRoomConnections.Connection.RequestParameter(
+      userId: userId,
+      roomId: roomId
+    )
+    let outputStream = try await self.userRoomConnections.addJSONLConnectionFor(
+      request: request,
+      inbound: inputStream
+    )
+
+    let messageStream = AsyncThrowingStream<ChatMessage, Swift.Error> { continuation in
+      let listener = Task {
+        for try await output in outputStream {
+          switch output {
+          case .response(let message):
+            continuation.yield(message)
+          case .close(_):
+            continuation.finish()
+          }
+        }
+        continuation.finish()
+      }
+
+      continuation.onTermination = { _ in
+        listener.cancel()
+        Task {
+          try await self.userRoomConnections.removeJSONLConnectionFor(request: request)
+        }
+      }
+    }
+
+    let heartbeatStream = self.heartbeatSequence
+      .map { _ in ChatMessage.heartbeat }
+
+    let eventStream = merge(messageStream, heartbeatStream)
     let chosenContentType =
       input.headers.accept.sortedByQuality().first ?? .init(contentType: .applicationJsonl)
     let responseBody: Operations.GetMessages.Output.Ok.Body =
       switch chosenContentType.contentType {
       case .applicationJsonl:
         .applicationJsonl(
-          .init(eventStream.asEncodedJSONLines(), length: .unknown, iterationBehavior: .single)
+          .init(
+            eventStream.asEncodedJSONLines(),
+            length: .unknown,
+            iterationBehavior: .single
+          )
         )
       case .other:
         throw Api.Error.unsupportedType
@@ -128,6 +189,60 @@ public struct Api: APIProtocol {
           )
         )
       )
+    )
+  }
+
+  public func shouldUpgrade(
+    request: Request,
+    context: BasicWebSocketRequestContext
+  ) async throws -> RouterShouldUpgrade {
+    // only allow upgrade if username query parameter exists
+    guard
+      request.uri.queryParameters["user_id"] != nil,
+      request.uri.queryParameters["room_id"] != nil
+    else {
+      return .dontUpgrade
+    }
+    return .upgrade([:])
+  }
+
+  public func onUpgrade(
+    inbound: WebSocketInboundStream,
+    outbound: WebSocketOutboundWriter,
+    context: WebSocketRouterContext<BasicWebSocketRequestContext>
+  ) async throws {
+    let userId = try context.request.uri.queryParameters.require("user_id", as: UUID.self)
+    let roomId = try context.request.uri.queryParameters.require("room_id", as: UUID.self)
+    let parameters = UserRoomConnections.Connection.RequestParameter(
+      userId: userId,
+      roomId: roomId
+    )
+    do {
+      let outputStream = try await self.userRoomConnections.addWSConnectionFor(
+        request: parameters,
+        inbound: inbound
+      )
+      for try await output in outputStream {
+        switch output {
+        case .frame(let frame):
+          try await outbound.write(frame)
+        case .close(let reason):
+          try await outbound.close(.unexpectedServerError, reason: reason)
+        }
+      }
+    } catch {
+      try await outbound.close(.unexpectedServerError, reason: error.localizedDescription)
+    }
+  }
+}
+
+extension ChatMessage {
+  fileprivate static var heartbeat: ChatMessage {
+    // TODO: think metadata doesn't matter, but double check
+    ChatMessage(
+      user: .init(id: "", name: ""),
+      room: .init(id: "", name: ""),
+      message: .HeartbeatMessage(.init(heartbeatAt: Date()))
     )
   }
 }

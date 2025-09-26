@@ -16,6 +16,20 @@ public distributed actor Room {
 
   // MARK: `User` should send message, thus this is not public.
   distributed func receive(message: Message, from user: User) async throws {
+    /// Check if message could be handled
+    switch message {
+    case .join where self.state.onlineUsers.contains(user):
+      /// User already joined
+      throw Error.userAlreadyJoined
+    case .disconnect where !self.state.onlineUsers.contains(user),
+      .message where !self.state.onlineUsers.contains(user):
+      /// User should join first before sending messages
+      throw Error.userIsMissing
+    default:
+      ()
+    }
+
+    /// Now handle it
     let userInfo = try await user.info
     let messageEnvelope = MessageEnvelope(
       room: self.state.info,
@@ -35,11 +49,9 @@ public distributed actor Room {
       self.actorSystem.log.error("Emitting failed, reason: \(error)")
       throw error
     }
-    /// after saving event, we need to update other states
+    /// after saving event, we need to update room state
     switch message {
     case .join:
-      /// Let's double check not to send old messages twice
-      guard !self.state.onlineUsers.contains(user) else { break }
       self.state.onlineUsers.insert(user)
       // send old messages to user
       try? await user.receive(
@@ -48,8 +60,7 @@ public distributed actor Room {
           .filter { $0 != messageEnvelope },
         from: self
       )
-    case .leave,
-      .disconnect:
+    case .disconnect:
       self.state.onlineUsers.remove(user)
     default:
       break

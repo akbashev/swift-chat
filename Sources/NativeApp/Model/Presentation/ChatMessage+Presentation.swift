@@ -10,14 +10,12 @@ extension ChatClient.Message {
     let room = RoomResponse(room)
     let message: ChatMessage.MessagePayload =
       switch message {
-      case .disconnect:
-        .DisconnectMessage(.init(_type: .disconnect))
-      case .join:
-        .JoinMessage(.init(_type: .join))
-      case .leave:
-        .LeaveMessage(.init(_type: .leave))
+      case .disconnect(let date):
+        .DisconnectMessage(.init(disconnectedAt: date))
+      case .join(let date):
+        .JoinMessage(.init(joinedAt: date))
       case .message(let message, let date):
-        .TextMessage(.init(_type: .message, content: message, timestamp: date))
+        .TextMessage(.init(content: message, timestamp: date))
       }
     self.init(
       user: user,

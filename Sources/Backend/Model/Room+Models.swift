@@ -3,10 +3,9 @@ import Foundation
 extension Room {
 
   public enum Message: Sendable, Codable, Equatable {
-    case join
+    case join(Date)
     case message(String, at: Date)
-    case leave
-    case disconnect
+    case disconnect(Date)
   }
 
   public struct Info: Hashable, Sendable, Codable, Equatable {
@@ -36,16 +35,16 @@ extension Room {
 
   public enum Event: Sendable, Codable, Equatable {
     public enum Action: Sendable, Codable, Equatable {
-      case joined
+      case joined(Date)
       case sentMessage(String, at: Date)
-      case left
-      case disconnected
+      case disconnected(Date)
     }
     case userDid(Action, info: User.Info)
   }
 
-  public enum Error: Swift.Error {
+  public enum Error: Swift.Error, Codable, Sendable {
     case userIsMissing
+    case userAlreadyJoined
   }
 
   struct State {

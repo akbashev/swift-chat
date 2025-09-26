@@ -25,9 +25,11 @@ package.dependencies += [
   .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.8.0"),
   .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.1.0"),
   .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0"),
+  // Swift-server
+  .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0"),
   // Hummingbird
   .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.16.0"),
-  .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0"),
+  .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "2.2.0"),
   // Vapor
   .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.27.0"),
   // Pointfree.co
@@ -45,6 +47,8 @@ package.targets += [
       .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
       .product(name: "OpenAPIHummingbird", package: "swift-openapi-hummingbird"),
       .product(name: "OpenAPIURLSession", package: "swift-openapi-urlsession"),
+      .product(name: "HummingbirdWebSocket", package: "hummingbird-websocket"),
+      .product(name: "HummingbirdWSCompression", package: "hummingbird-websocket"),
       .product(name: "VirtualActors", package: "cluster-virtual-actors"),
       .product(name: "DistributedCluster", package: "swift-distributed-actors"),
     ],

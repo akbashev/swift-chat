@@ -14,17 +14,15 @@ public struct MessagePresentation: Identifiable, Equatable, Sendable {
 }
 
 public enum Message: Identifiable, Equatable, Sendable {
-  case join
+  case join(Date)
   case message(String, at: Date)
-  case leave
-  case disconnect
+  case disconnect(Date)
 
   public var id: String {
     switch self {
-    case .join: "join"
+    case .join(let date): "join_\(date.description)"
     case .message(let message, let date): "message_\(message)_\(date.description)"
-    case .leave: "leave"
-    case .disconnect: "disconnect"
+    case .disconnect(let date): "disconnect_\(date.description)"
     }
   }
 }
@@ -34,12 +32,10 @@ extension MessagePresentation {
     self.user = try .init(message.user)
     self.room = try .init(message.room)
     switch message.message {
-    case .DisconnectMessage:
-      self.message = .disconnect
-    case .JoinMessage:
-      self.message = .join
-    case .LeaveMessage:
-      self.message = .leave
+    case .DisconnectMessage(let value):
+      self.message = .disconnect(value.disconnectedAt)
+    case .JoinMessage(let value):
+      self.message = .join(value.joinedAt)
     case .TextMessage(let message):
       self.message = .message(message.content, at: message.timestamp)
     case .HeartbeatMessage:

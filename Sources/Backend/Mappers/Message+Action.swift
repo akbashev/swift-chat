@@ -4,12 +4,10 @@ extension Room.Message {
       switch action {
       case .sentMessage(let message, let date):
         .message(message, at: date)
-      case .left:
-        .leave
-      case .disconnected:
-        .disconnect
-      case .joined:
-        .join
+      case .disconnected(let date):
+        .disconnect(date)
+      case .joined(let date):
+        .join(date)
       }
   }
 }
@@ -20,12 +18,10 @@ extension Room.Event.Action {
       switch message {
       case let .message(message, date):
         .sentMessage(message, at: date)
-      case .leave:
-        .left
-      case .disconnect:
-        .disconnected
-      case .join:
-        .joined
+      case .disconnect(let date):
+        .disconnected(date)
+      case .join(let date):
+        .joined(date)
       }
   }
 }
