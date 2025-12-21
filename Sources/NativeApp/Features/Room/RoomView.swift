@@ -21,13 +21,13 @@ public struct RoomView: View {
               Group {
                 switch response.message {
                 case .join:
-                  Text("\(response.user.name) joined the chat. 🎉🥳")
+                  Text("\(response.participant.name) joined the chat. 🎉🥳")
                 case .disconnect:
-                  Text("\(response.user.name) disconnected. 💤😴")
-                case .message(let message, _) where response.user == store.user:
+                  Text("\(response.participant.name) disconnected. 💤😴")
+                case .message(let message, _) where response.participant.id == store.user.id:
                   UserMessage(message: message)
                 case .message(let message, _):
-                  OtherUsersMessage(name: response.user.name, message: message)
+                  ParticipantMessage(name: response.participant.name, message: message)
                 }
               }
               .id(response.id)
@@ -103,7 +103,7 @@ struct UserMessage: View {
   }
 }
 
-struct OtherUsersMessage: View {
+struct ParticipantMessage: View {
 
   let name: String
   let message: String

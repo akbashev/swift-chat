@@ -12,12 +12,12 @@ public struct Entrance: Reducer, Sendable {
 
     enum Navigation: Equatable, Identifiable {
       enum SheetRoute: Equatable, Identifiable {
-        case createUser
+        case register
         case createRoom
 
         public var id: String {
           switch self {
-          case .createUser: "createUser"
+          case .register: "register"
           case .createRoom: "createRoom"
           }
         }
@@ -44,7 +44,7 @@ public struct Entrance: Reducer, Sendable {
       }
     }
 
-    @Shared(.fileStorage(.user)) var user: UserPresentation?
+    @Shared(.fileStorage(.user)) var user: ParticipantPresentation?
 
     @Presents var room: Room.State?
 
@@ -61,11 +61,11 @@ public struct Entrance: Reducer, Sendable {
     case onAppear
     case openCreateRoom
     case selectRoom(RoomPresentation)
-    case createUser(String)
+    case register(String)
     case createRoom(String, String?)
     case searchRoom(String)
     case didCreateRoom(Result<RoomPresentation, Error>)
-    case didCreateUser(Result<UserPresentation, any Error>)
+    case didRegisterUser(Result<ParticipantPresentation, any Error>)
     case didSearchRoom(Result<[RoomPresentation], any Error>)
     case room(PresentationAction<Room.Action>)
   }
@@ -80,19 +80,19 @@ public struct Entrance: Reducer, Sendable {
       switch action {
       case .onAppear:
         if state.user == .none {
-          state.sheet = .createUser
+          state.sheet = .register
         }
         return .none
       case .selectRoom(let response):
         state.room = .init(user: state.user!, room: response)
         return .none
-      case .createUser(let userName):
+      case .register(let userName):
         return .run { send in
           await send(
-            .didCreateUser(
+            .didRegisterUser(
               Result {
-                try await UserPresentation(
-                  client.createUser(body: .json(.init(name: userName)))
+                try await ParticipantPresentation(
+                  client.register(body: .json(.init(name: userName)))
                 )
               }
             )
@@ -136,11 +136,11 @@ public struct Entrance: Reducer, Sendable {
             )
           )
         }
-      case let .didCreateUser(.success(user)):
+      case let .didRegisterUser(.success(user)):
         state.$user.withLock { $0 = user }
         state.sheet = .none
         return .none
-      case .didCreateUser(.failure):
+      case .didRegisterUser(.failure):
         return .none
       case let .didCreateRoom(.success(room)):
         state.isLoading = false

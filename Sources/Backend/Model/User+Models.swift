@@ -1,6 +1,6 @@
 import Foundation
 
-extension User {
+extension Participant {
 
   public struct Info: Sendable, Hashable, Codable, Equatable {
 
@@ -34,6 +34,6 @@ extension User {
   }
 
   struct State: Equatable {
-    let info: User.Info
+    let info: Info
   }
 }

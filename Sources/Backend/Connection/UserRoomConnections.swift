@@ -11,7 +11,7 @@ import ServiceLifecycle
 import VirtualActors
 
 // TODO: Cleanup file
-public struct UserRoomConnections: Service {
+public struct ParticipantRoomConnections: Service {
 
   public enum Connection: Identifiable, Sendable {
     case jsonl(JSONLConnection)
@@ -64,7 +64,7 @@ public struct UserRoomConnections: Service {
       _ connection: Connection
     ) async throws {
       if self.connections[connection.id] != nil {
-        self.logger.info("user already exists", metadata: ["conversationId": .string(connection.id)])
+        self.logger.info("participant already exists", metadata: ["conversationId": .string(connection.id)])
         // remove and reconnect
         try await self.remove(connectionWithId: connection.id)
       }
@@ -72,7 +72,7 @@ public struct UserRoomConnections: Service {
       self.connections[connection.id] = connection
       do {
         try await self.send(.join(Date()), to: connection.id)
-      } catch Room.Error.userAlreadyJoined {
+      } catch Room.Error.participantAlreadyJoined {
         // TODO: Handle it
       } catch {
         throw error
@@ -89,7 +89,7 @@ public struct UserRoomConnections: Service {
       }
       do {
         try await self.send(.disconnect(Date()), to: id)
-      } catch Room.Error.userIsMissing {
+      } catch Room.Error.participantIsMissing {
         // TODO: Handle it
       } catch {
         throw error
@@ -208,9 +208,9 @@ public struct UserRoomConnections: Service {
   }
 
   private func findRoom(
-    for parameters: UserRoomConnections.Connection.RequestParameter
+    for parameters: ParticipantRoomConnections.Connection.RequestParameter
   ) async throws -> Backend.Room {
-    let model = try await self.persistence.getRoom(id: parameters.roomId)
+    let model = try await self.persistence.getRoom(for: parameters.roomId)
     return try await self.actorSystem.virtualActors.getActor(
       identifiedBy: .init(rawValue: parameters.roomId.uuidString),
       dependency: Backend.Room.Info(
@@ -235,31 +235,31 @@ public struct UserRoomConnections: Service {
 
 }
 
-extension UserRoomConnections {
+extension ParticipantRoomConnections {
 
   public func addWSConnectionFor(
-    request: UserRoomConnections.Connection.RequestParameter,
+    request: ParticipantRoomConnections.Connection.RequestParameter,
     inbound: WebSocketInboundStream
   ) async throws -> Connection.WebSocketConnection.OutputStream {
     let outbound = Connection.WebSocketConnection.OutputStream()
     let room = try await self.findRoom(for: request)
-    let userModel =
+    let participantModel =
       try await persistence
-      .getUser(id: request.userId)
-    let user = User(
+      .getParticipant(for: request.participantId)
+    let participant = Participant(
       actorSystem: self.actorSystem,
       info: .init(
-        id: userModel.id,
-        name: userModel.name
+        id: participantModel.id,
+        name: participantModel.name
       ),
       reply: { [weak outbound] messages in
         let responses: [ChatMessage] = messages.map {
           switch $0 {
           case let .message(envelope):
             ChatMessage(
-              user: .init(
-                id: envelope.user.id.rawValue.uuidString,
-                name: envelope.user.name
+              participant: .init(
+                id: envelope.participant.id.rawValue.uuidString,
+                name: envelope.participant.name
               ),
               room: .init(
                 id: envelope.room.id.rawValue.uuidString,
@@ -277,7 +277,7 @@ extension UserRoomConnections {
     let connection = Connection.websocket(
       .init(
         requestParameter: request,
-        user: user,
+        participant: participant,
         room: room,
         inbound: inbound,
         outbound: outbound
@@ -288,19 +288,19 @@ extension UserRoomConnections {
   }
 
   public func addJSONLConnectionFor(
-    request: UserRoomConnections.Connection.RequestParameter,
+    request: ParticipantRoomConnections.Connection.RequestParameter,
     inbound: AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, ChatMessage>
   ) async throws -> Connection.JSONLConnection.OutputStream {
     let outbound = Connection.JSONLConnection.OutputStream()
     let room = try await self.findRoom(for: request)
-    let userModel =
+    let participantModel =
       try await persistence
-      .getUser(id: request.userId)
-    let user = User(
+      .getParticipant(for: request.participantId)
+    let participant = Participant(
       actorSystem: self.actorSystem,
       info: .init(
-        id: userModel.id,
-        name: userModel.name
+        id: participantModel.id,
+        name: participantModel.name
       ),
       reply: { [weak outbound] messages in
         for message in messages {
@@ -308,9 +308,9 @@ extension UserRoomConnections {
             switch message {
             case let .message(envelope):
               ChatMessage(
-                user: .init(
-                  id: envelope.user.id.rawValue.uuidString,
-                  name: envelope.user.name
+                participant: .init(
+                  id: envelope.participant.id.rawValue.uuidString,
+                  name: envelope.participant.name
                 ),
                 room: .init(
                   id: envelope.room.id.rawValue.uuidString,
@@ -327,7 +327,7 @@ extension UserRoomConnections {
     let connection = Connection.jsonl(
       .init(
         requestParameter: request,
-        user: user,
+        participant: participant,
         room: room,
         inbound: inbound,
         outbound: outbound
@@ -338,7 +338,7 @@ extension UserRoomConnections {
   }
 
   public func removeJSONLConnectionFor(
-    request: UserRoomConnections.Connection.RequestParameter
+    request: ParticipantRoomConnections.Connection.RequestParameter
   ) async throws {
     try await self.outboundConnections.remove(connectionWithId: request.id)
   }
@@ -357,18 +357,18 @@ extension Data {
   }
 }
 
-extension UserRoomConnections.Connection {
+extension ParticipantRoomConnections.Connection {
 
   public struct RequestParameter: Hashable, Identifiable, Sendable {
-    public var id: String { "\(self.roomId.uuidString)_\(self.userId.uuidString)" }
-    public let userId: UUID
+    public var id: String { "\(self.roomId.uuidString)_\(self.participantId.uuidString)" }
+    public let participantId: UUID
     public let roomId: UUID
 
     public init(
-      userId: UUID,
+      participantId: UUID,
       roomId: UUID
     ) {
-      self.userId = userId
+      self.participantId = participantId
       self.roomId = roomId
     }
   }
@@ -386,14 +386,14 @@ extension UserRoomConnections.Connection {
     public var id: String { self.requestParameter.id }
     let requestParameter: RequestParameter
 
-    let user: User
+    let participant: Participant
     let room: Room
 
     let inbound: InputStream
     let outbound: OutputStream
 
     func send(message: Room.Message) async throws {
-      try await self.user.send(message: message, to: self.room)
+      try await self.participant.send(message: message, to: self.room)
     }
   }
 
@@ -407,14 +407,14 @@ extension UserRoomConnections.Connection {
     public var id: String { self.requestParameter.id }
     let requestParameter: RequestParameter
 
-    let user: User
+    let participant: Participant
     let room: Room
 
     let inbound: WebSocketInboundStream
     let outbound: OutputStream
 
     func send(message: Room.Message) async throws {
-      try await self.user.send(message: message, to: self.room)
+      try await self.participant.send(message: message, to: self.room)
     }
   }
 }

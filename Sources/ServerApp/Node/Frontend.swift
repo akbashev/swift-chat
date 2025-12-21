@@ -28,14 +28,14 @@ struct Frontend: Service {
     let persistence = try await Persistence(
       type: .postgres(config)
     )
-    let userConnectionManager = UserRoomConnections(
+    let participantConnectionManager = ParticipantRoomConnections(
       actorSystem: self.clusterSystem,
-      logger: Logger(label: "UserRoomConnections"),
+      logger: Logger(label: "ParticipantRoomConnections"),
       persistence: persistence
     )
     let router = Router()
     let handler = Api(
-      userRoomConnections: userConnectionManager,
+      participantRoomConnections: participantConnectionManager,
       persistence: persistence
     )
     try handler.registerHandlers(on: router)
@@ -62,7 +62,7 @@ struct Frontend: Service {
       )
     )
     app.addServices(
-      userConnectionManager
+      participantConnectionManager
     )
     try await app.run()
   }

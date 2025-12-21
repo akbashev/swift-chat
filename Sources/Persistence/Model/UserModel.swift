@@ -1,6 +1,6 @@
 import Foundation
 
-public struct UserModel: Sendable, Codable, Equatable {
+public struct ParticipantModel: Sendable, Codable, Equatable {
   public let id: UUID
   public let createdAt: Date
   public let name: String

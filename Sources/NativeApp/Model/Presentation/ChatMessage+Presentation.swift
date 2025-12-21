@@ -2,11 +2,11 @@ import Models
 
 extension ChatClient.Message {
   init(
-    user: UserPresentation,
+    participant: ParticipantPresentation,
     room: RoomPresentation,
     message: Message
   ) {
-    let user = UserResponse(user)
+    let participant = ParticipantResponse(participant)
     let room = RoomResponse(room)
     let message: ChatMessage.MessagePayload =
       switch message {
@@ -18,21 +18,21 @@ extension ChatClient.Message {
         .TextMessage(.init(content: message, timestamp: date))
       }
     self.init(
-      user: user,
+      participant: participant,
       room: room,
       message: message
     )
   }
 
   init(
-    user: UserPresentation,
+    participant: ParticipantPresentation,
     room: RoomPresentation,
     message: HeartbeatMessage
   ) {
-    let user = UserResponse(user)
+    let participant = ParticipantResponse(participant)
     let room = RoomResponse(room)
     self.init(
-      user: user,
+      participant: participant,
       room: room,
       message: .HeartbeatMessage(message)
     )

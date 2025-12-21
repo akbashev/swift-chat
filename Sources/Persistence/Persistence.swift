@@ -7,10 +7,10 @@ protocol Persistable: Sendable {
   func create(input: Persistence.Input) async throws
   func update(input: Persistence.Input) async throws
 
-  func getRoom(id: UUID) async throws -> RoomModel
+  func getRoom(for id: UUID) async throws -> RoomModel
   func searchRoom(query: String) async throws -> [RoomModel]
 
-  func getUser(id: UUID) async throws -> UserModel
+  func getParticipant(for id: UUID) async throws -> ParticipantModel
 }
 
 public actor Persistence {
@@ -25,11 +25,11 @@ public actor Persistence {
   public enum Error: Swift.Error {
     case roomMissing(id: UUID)
     case roomMissing(name: String)
-    case userMissing(id: UUID)
+    case participantMissing(id: UUID)
   }
 
   public enum Input: Sendable, Codable, Equatable {
-    case user(UserModel)
+    case participant(ParticipantModel)
     case room(RoomModel)
   }
 
@@ -43,12 +43,12 @@ public actor Persistence {
     try await self.persistance.update(input: input)
   }
 
-  public func getUser(id: UUID) async throws -> UserModel {
-    try await self.persistance.getUser(id: id)
+  public func getParticipant(for id: UUID) async throws -> ParticipantModel {
+    try await self.persistance.getParticipant(for: id)
   }
 
-  public func getRoom(id: UUID) async throws -> RoomModel {
-    try await self.persistance.getRoom(id: id)
+  public func getRoom(for id: UUID) async throws -> RoomModel {
+    try await self.persistance.getRoom(for: id)
   }
 
   public func searchRoom(query: String) async throws -> [RoomModel] {

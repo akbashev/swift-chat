@@ -91,6 +91,19 @@ package.targets += [
       .enableUpcomingFeature("InferIsolatedConformances"),
     ]
   ),
+  .target(
+    name: "WebApp",
+    dependencies: [
+      "Client",
+      .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
+      .product(name: "Dependencies", package: "swift-dependencies"),
+      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+    ],
+    swiftSettings: [
+      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+      .enableUpcomingFeature("InferIsolatedConformances"),
+    ]
+  ),
   .executableTarget(
     name: "CLIApp",
     dependencies: [

@@ -3,16 +3,16 @@ import Foundation
 public struct MessageEnvelope: Sendable, Codable, Equatable {
 
   public let room: Room.Info
-  public let user: User.Info
+  public let participant: Participant.Info
   public let message: Room.Message
 
   public init(
     room: Room.Info,
-    user: User.Info,
+    participant: Participant.Info,
     message: Room.Message
   ) {
     self.room = room
-    self.user = user
+    self.participant = participant
     self.message = message
   }
 }

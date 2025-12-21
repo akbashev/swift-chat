@@ -14,31 +14,31 @@ public distributed actor Room {
     self.state.info
   }
 
-  // MARK: `User` should send message, thus this is not public.
-  distributed func receive(message: Message, from user: User) async throws {
+  // MARK: `Participant` should send message, thus this is not public.
+  distributed func receive(message: Message, from participant: Participant) async throws {
     /// Check if message could be handled
     switch message {
-    case .join where self.state.onlineUsers.contains(user):
-      /// User already joined
-      throw Error.userAlreadyJoined
-    case .disconnect where !self.state.onlineUsers.contains(user),
-      .message where !self.state.onlineUsers.contains(user):
-      /// User should join first before sending messages
-      throw Error.userIsMissing
+    case .join where self.state.onlineParticipants.contains(participant):
+      /// Participant already joined
+      throw Error.participantAlreadyJoined
+    case .disconnect where !self.state.onlineParticipants.contains(participant),
+      .message where !self.state.onlineParticipants.contains(participant):
+      /// Participant should join first before sending messages
+      throw Error.participantIsMissing
     default:
       ()
     }
 
     /// Now handle it
-    let userInfo = try await user.info
+    let participantInfo = try await participant.info
     let messageEnvelope = MessageEnvelope(
       room: self.state.info,
-      user: userInfo,
+      participant: participantInfo,
       message: message
     )
-    self.actorSystem.log.info("Recieved message \(message) from user \(userInfo)")
+    self.actorSystem.log.info("Recieved message \(message) from participant \(participantInfo)")
     let action = Event.Action(message)
-    let event = Event.userDid(action, info: userInfo)
+    let event = Event.participantDid(action, info: participantInfo)
     do {
       /// We're saving state by saving an event
       /// Emit function also calls `handleEvent(_:)` internally, so will update state
@@ -52,16 +52,16 @@ public distributed actor Room {
     /// after saving event, we need to update room state
     switch message {
     case .join:
-      self.state.onlineUsers.insert(user)
-      // send old messages to user
-      try? await user.receive(
+      self.state.onlineParticipants.insert(participant)
+      // send old messages to participant
+      try? await participant.receive(
         envelopes: self.state
           .messages
           .filter { $0 != messageEnvelope },
         from: self
       )
     case .disconnect:
-      self.state.onlineUsers.remove(user)
+      self.state.onlineParticipants.remove(participant)
     default:
       break
     }
@@ -80,9 +80,9 @@ public distributed actor Room {
   }
 
   private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
-    let onlineUsers = self.state.onlineUsers
+    let onlineParticipants = self.state.onlineParticipants
     await withTaskGroup(of: Void.self) { group in
-      for other in onlineUsers {
+      for other in onlineParticipants {
         group.addTask { [weak other] in
           // TODO: should we handle errors here?
           try? await other?.receive(
@@ -99,12 +99,12 @@ public distributed actor Room {
 extension Room: EventSourced {
   distributed public func handleEvent(_ event: Event) {
     switch event {
-    case .userDid(let action, let userInfo):
+    case .participantDid(let action, let participantInfo):
       self.state.messages
         .append(
           MessageEnvelope(
             room: self.state.info,
-            user: userInfo,
+            participant: participantInfo,
             message: .init(action)
           )
         )

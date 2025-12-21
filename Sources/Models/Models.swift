@@ -1,6 +1,6 @@
 // just a boilerplate to reduce a bit cod
 // MARK: - Responses
-public typealias UserResponse = Components.Schemas.UserResponse
+public typealias ParticipantResponse = Components.Schemas.ParticipantResponse
 public typealias RoomResponse = Components.Schemas.RoomResponse
 public typealias ChatMessage = Components.Schemas.ChatMessage
 public typealias JoinMessage = Components.Schemas.JoinMessage

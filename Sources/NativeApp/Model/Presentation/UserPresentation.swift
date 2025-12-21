@@ -1,7 +1,7 @@
 import Foundation
 import Models
 
-public struct UserPresentation: Identifiable, Codable, Equatable, Hashable, Sendable {
+public struct ParticipantPresentation: Identifiable, Codable, Equatable, Hashable, Sendable {
   public let id: UUID
   public let name: String
 
@@ -11,21 +11,21 @@ public struct UserPresentation: Identifiable, Codable, Equatable, Hashable, Send
   }
 }
 
-extension UserPresentation {
-  init(_ output: Operations.CreateUser.Output) throws {
+extension ParticipantPresentation {
+  init(_ output: Operations.Register.Output) throws {
     let payload = try output.ok.body.json
     guard let id = UUID(uuidString: payload.id) else {
-      throw ParseMappingError.user
+      throw ParseMappingError.participant
     }
     self.id = id
     self.name = payload.name
   }
 }
 
-extension UserPresentation {
-  init(_ response: UserResponse) throws {
+extension ParticipantPresentation {
+  init(_ response: ParticipantResponse) throws {
     guard let id = UUID(uuidString: response.id) else {
-      throw ParseMappingError.user
+      throw ParseMappingError.participant
     }
     self.id = id
     self.name = response.name

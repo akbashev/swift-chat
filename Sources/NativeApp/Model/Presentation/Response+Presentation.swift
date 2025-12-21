@@ -1,8 +1,8 @@
 import Models
 
-extension UserResponse {
-  init(_ user: UserPresentation) {
-    self.init(id: user.id.uuidString, name: user.name)
+extension ParticipantResponse {
+  init(_ participant: ParticipantPresentation) {
+    self.init(id: participant.id.uuidString, name: participant.name)
   }
 }
 

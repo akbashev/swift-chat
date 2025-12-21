@@ -12,7 +12,7 @@ public struct Room: Sendable {
   public struct State {
 
     let room: RoomPresentation
-    let user: UserPresentation
+    let user: ParticipantPresentation
 
     var alert: AlertState<Action.Alert>?
     var message: String = ""
@@ -32,7 +32,7 @@ public struct Room: Sendable {
     }
 
     public init(
-      user: UserPresentation,
+      user: ParticipantPresentation,
       room: RoomPresentation,
       alert: AlertState<Action.Alert>? = nil,
       connectivityState: ConnectivityState = ConnectivityState.disconnected,
@@ -158,7 +158,7 @@ public struct Room: Sendable {
         else {
           return .none
         }
-        if message.user == state.user {
+        if message.participant == state.user {
           state.messagesToSend.removeAll(where: { $0 == message.message })
         }
         state.receivedMessages.append(message)
@@ -173,7 +173,7 @@ public struct Room: Sendable {
               Result {
                 for message in messages {
                   let chatMessage = ChatClient.Message(
-                    user: user,
+                    participant: user,
                     room: room,
                     message: message
                   )

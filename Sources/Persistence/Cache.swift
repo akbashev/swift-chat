@@ -3,7 +3,7 @@ import Foundation
 actor Cache: Persistable {
 
   private struct Data: Equatable {
-    var users: Set<UserModel> = []
+    var participants: Set<ParticipantModel> = []
     var rooms: Set<RoomModel> = []
   }
 
@@ -11,9 +11,9 @@ actor Cache: Persistable {
 
   func create(input: Persistence.Input) throws {
     switch input {
-    case .user(let user):
-      self.data.users
-        .insert(user)
+    case .participant(let participant):
+      self.data.participants
+        .insert(participant)
     case .room(let room):
       self.data.rooms
         .insert(room)
@@ -22,35 +22,35 @@ actor Cache: Persistable {
 
   func update(input: Persistence.Input) throws {
     switch input {
-    case .user(let user):
-      self.data.users
-        .insert(user)
+    case .participant(let participant):
+      self.data.participants
+        .insert(participant)
     case .room(let room):
       self.data.rooms
         .insert(room)
     }
   }
 
-  func getUser(id: UUID) throws -> UserModel {
-    guard let userInfo = data.users.first(where: { $0.id == id }) else {
-      throw Persistence.Error.userMissing(id: id)
+  func getParticipant(for id: UUID) throws -> ParticipantModel {
+    guard let participantInfo = self.data.participants.first(where: { $0.id == id }) else {
+      throw Persistence.Error.participantMissing(id: id)
     }
-    return userInfo
+    return participantInfo
   }
 
-  func getRoom(id: UUID) throws -> RoomModel {
-    guard let roomInfo = data.rooms.first(where: { $0.id == id }) else {
+  func getRoom(for id: UUID) throws -> RoomModel {
+    guard let roomInfo = self.data.rooms.first(where: { $0.id == id }) else {
       throw Persistence.Error.roomMissing(id: id)
     }
     return roomInfo
   }
 
   func searchRoom(query: String) async throws -> [RoomModel] {
-    data.rooms.filter { $0.name.contains(query) }
+    self.data.rooms.filter { $0.name.contains(query) }
   }
 }
 
-extension UserModel: Hashable {
+extension ParticipantModel: Hashable {
   public func hash(into hasher: inout Hasher) {
     hasher.combine(self.id.uuidString)
   }

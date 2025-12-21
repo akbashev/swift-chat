@@ -1,5 +1,5 @@
 public enum ParseMappingError: Swift.Error {
-  case user
+  case participant
   case room
   case roomSearch
 }

@@ -39,18 +39,18 @@ extension Room {
       case sentMessage(String, at: Date)
       case disconnected(Date)
     }
-    case userDid(Action, info: User.Info)
+    case participantDid(Action, info: Participant.Info)
   }
 
   public enum Error: Swift.Error, Codable, Sendable {
-    case userIsMissing
-    case userAlreadyJoined
+    case participantIsMissing
+    case participantAlreadyJoined
   }
 
   struct State {
     let info: Room.Info
     var messages: [MessageEnvelope] = []
-    var onlineUsers: Set<User> = .init()
+    var onlineParticipants: Set<Participant> = .init()
 
     public init(
       info: Room.Info

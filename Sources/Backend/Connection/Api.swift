@@ -18,7 +18,7 @@ public struct Api: APIProtocol {
     case unexpectedServerError
   }
 
-  let userRoomConnections: UserRoomConnections
+  let participantRoomConnections: ParticipantRoomConnections
   let persistence: Persistence
   let heartbeatSequence = AsyncTimerSequence(
     interval: .seconds(15),
@@ -26,10 +26,10 @@ public struct Api: APIProtocol {
   )
 
   public init(
-    userRoomConnections: UserRoomConnections,
+    participantRoomConnections: ParticipantRoomConnections,
     persistence: Persistence
   ) {
-    self.userRoomConnections = userRoomConnections
+    self.participantRoomConnections = participantRoomConnections
     self.persistence = persistence
   }
 
@@ -39,7 +39,7 @@ public struct Api: APIProtocol {
     -> Operations.GetMessages.Output
   {
     guard
-      let userId = UUID(uuidString: input.headers.userId),
+      let participantId = UUID(uuidString: input.headers.participantId),
       let roomId = UUID(uuidString: input.headers.roomId)
     else {
       throw Api.Error.unsupportedType
@@ -52,11 +52,11 @@ public struct Api: APIProtocol {
           of: ChatMessage.self
         )
       }
-    let request = UserRoomConnections.Connection.RequestParameter(
-      userId: userId,
+    let request = ParticipantRoomConnections.Connection.RequestParameter(
+      participantId: participantId,
       roomId: roomId
     )
-    let outputStream = try await self.userRoomConnections.addJSONLConnectionFor(
+    let outputStream = try await self.participantRoomConnections.addJSONLConnectionFor(
       request: request,
       inbound: inputStream
     )
@@ -77,7 +77,7 @@ public struct Api: APIProtocol {
       continuation.onTermination = { _ in
         listener.cancel()
         Task {
-          try await self.userRoomConnections.removeJSONLConnectionFor(request: request)
+          try await self.participantRoomConnections.removeJSONLConnectionFor(request: request)
         }
       }
     }
@@ -122,9 +122,9 @@ public struct Api: APIProtocol {
     return .ok(.init(body: .json(rooms)))
   }
 
-  public func createUser(
-    _ input: Operations.CreateUser.Input
-  ) async throws -> Operations.CreateUser.Output {
+  public func register(
+    _ input: Operations.Register.Input
+  ) async throws -> Operations.Register.Output {
     guard
       let name =
         switch input.body {
@@ -135,7 +135,7 @@ public struct Api: APIProtocol {
     }
     let id = UUID()
     try await persistence.create(
-      .user(
+      .participant(
         .init(
           id: id,
           createdAt: .init(),
@@ -196,9 +196,9 @@ public struct Api: APIProtocol {
     request: Request,
     context: BasicWebSocketRequestContext
   ) async throws -> RouterShouldUpgrade {
-    // only allow upgrade if username query parameter exists
+    // only allow upgrade if participantname query parameter exists
     guard
-      request.uri.queryParameters["user_id"] != nil,
+      request.uri.queryParameters["participant_id"] != nil,
       request.uri.queryParameters["room_id"] != nil
     else {
       return .dontUpgrade
@@ -211,14 +211,14 @@ public struct Api: APIProtocol {
     outbound: WebSocketOutboundWriter,
     context: WebSocketRouterContext<BasicWebSocketRequestContext>
   ) async throws {
-    let userId = try context.request.uri.queryParameters.require("user_id", as: UUID.self)
+    let participantId = try context.request.uri.queryParameters.require("participant_id", as: UUID.self)
     let roomId = try context.request.uri.queryParameters.require("room_id", as: UUID.self)
-    let parameters = UserRoomConnections.Connection.RequestParameter(
-      userId: userId,
+    let parameters = ParticipantRoomConnections.Connection.RequestParameter(
+      participantId: participantId,
       roomId: roomId
     )
     do {
-      let outputStream = try await self.userRoomConnections.addWSConnectionFor(
+      let outputStream = try await self.participantRoomConnections.addWSConnectionFor(
         request: parameters,
         inbound: inbound
       )
@@ -240,7 +240,7 @@ extension ChatMessage {
   fileprivate static var heartbeat: ChatMessage {
     // TODO: think metadata doesn't matter, but double check
     ChatMessage(
-      user: .init(id: "", name: ""),
+      participant: .init(id: "", name: ""),
       room: .init(id: "", name: ""),
       message: .HeartbeatMessage(.init(heartbeatAt: Date()))
     )

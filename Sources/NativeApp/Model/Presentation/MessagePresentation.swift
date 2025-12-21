@@ -3,12 +3,12 @@ import Foundation
 public struct MessagePresentation: Identifiable, Equatable, Sendable {
 
   public var id: String {
-    [self.user.id.uuidString, self.room.id.uuidString, message.id]
+    [self.participant.id.uuidString, self.room.id.uuidString, self.message.id]
       .compactMap { $0 }
       .joined(separator: "_ bn")
   }
 
-  let user: UserPresentation
+  let participant: ParticipantPresentation
   let room: RoomPresentation
   let message: Message
 }
@@ -29,7 +29,7 @@ public enum Message: Identifiable, Equatable, Sendable {
 
 extension MessagePresentation {
   init?(_ message: ChatClient.Message) throws {
-    self.user = try .init(message.user)
+    self.participant = try .init(message.participant)
     self.room = try .init(message.room)
     switch message.message {
     case .DisconnectMessage(let value):

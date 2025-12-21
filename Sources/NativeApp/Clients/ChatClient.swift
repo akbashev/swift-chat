@@ -19,12 +19,12 @@ public actor ChatClient {
   public init() {}
 
   public func connect(
-    user: UserPresentation,
+    user: ParticipantPresentation,
     to room: RoomPresentation
   ) async throws -> AsyncThrowingMapSequence<JSONLinesDeserializationSequence<HTTPBody>, Message> {
     let (stream, continuation) = AsyncStream<ChatMessage>.makeStream()
     let headers = Operations.GetMessages.Input.Headers(
-      userId: user.id.uuidString,
+      participantId: user.id.uuidString,
       roomId: room.id.uuidString
     )
     let body: Operations.GetMessages.Input.Body = .applicationJsonl(
@@ -55,7 +55,7 @@ public actor ChatClient {
     return messageStream
   }
 
-  public func send(message: Message, from user: UserPresentation, to room: RoomPresentation) throws {
+  public func send(message: Message, from user: ParticipantPresentation, to room: RoomPresentation) throws {
     let key = Key(
       room: room,
       user: user
@@ -67,7 +67,7 @@ public actor ChatClient {
   }
 
   public func disconnect(
-    user: UserPresentation,
+    user: ParticipantPresentation,
     from room: RoomPresentation
   ) {
     let key = Key(
@@ -76,7 +76,7 @@ public actor ChatClient {
     )
     self.connections[key]?.yield(
       .init(
-        user: user,
+        participant: user,
         room: room,
         message: .disconnect(Date())
       )
@@ -99,7 +99,7 @@ public actor ChatClient {
         for (info, connection) in self.connections {
           connection.yield(
             Message(
-              user: info.user,
+              participant: info.user,
               room: info.room,
               message: .init(heartbeatAt: Date())
             )
@@ -121,7 +121,7 @@ extension ChatClient {
 
   public struct Key: Hashable, Sendable {
     let room: RoomPresentation
-    let user: UserPresentation
+    let user: ParticipantPresentation
   }
 }
 

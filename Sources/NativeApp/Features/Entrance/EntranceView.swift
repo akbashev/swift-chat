@@ -41,8 +41,8 @@ public struct EntranceView: View {
         route: route,
         send: { action in
           switch action {
-          case .createUser(let name):
-            store.send(.createUser(name))
+          case .register(let name):
+            store.send(.register(name))
           case let .createRoom(name, description):
             store.send(.createRoom(name, description))
           }
@@ -75,7 +75,7 @@ struct RouteView: View {
   @Environment(\.dismiss) var dismiss
 
   enum Action {
-    case createUser(name: String)
+    case register(name: String)
     case createRoom(name: String, description: String?)
   }
 
@@ -85,14 +85,14 @@ struct RouteView: View {
   var body: some View {
     NavigationStack {
       switch route {
-      case .createUser:
-        CreateUserView { userName in
-          send(.createUser(name: userName))
+      case .register:
+        RegisterView { userName in
+          send(.register(name: userName))
         }
         .navigationTitle("Create user")
       case .createRoom:
-        CreateRoomView { userName, description in
-          send(.createRoom(name: userName, description: description))
+        CreateRoomView { roomName, description in
+          send(.createRoom(name: roomName, description: description))
         }
         .navigationTitle("Create room")
         .toolbar {

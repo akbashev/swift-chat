@@ -7,9 +7,9 @@ actor Postgres: Persistable {
 
   func create(input: Persistence.Input) async throws {
     switch input {
-    case .user(let user):
+    case .participant(let participant):
       try await connection.query(
-        "INSERT INTO users (id, created_at, name) VALUES (\(user.id), \(user.createdAt), \(user.name))",
+        "INSERT INTO participants (id, created_at, name) VALUES (\(participant.id), \(participant.createdAt), \(participant.name))",
         logger: connection.logger
       )
     case .room(let room):
@@ -22,9 +22,9 @@ actor Postgres: Persistable {
 
   func update(input: Persistence.Input) async throws {
     switch input {
-    case .user(let user):
+    case .participant(let participant):
       try await connection.query(
-        "UPDATE users SET \"name\" = \(user.name) WHERE id = \(user.id)",
+        "UPDATE participants SET \"name\" = \(participant.name) WHERE id = \(participant.id)",
         logger: connection.logger
       )
     case .room(let room):
@@ -35,22 +35,22 @@ actor Postgres: Persistable {
     }
   }
 
-  func getUser(id: UUID) async throws -> UserModel {
+  func getParticipant(for id: UUID) async throws -> ParticipantModel {
     let rows = try await connection.query(
-      "SELECT id, created_at, name FROM users WHERE id = \(id)",
+      "SELECT id, created_at, name FROM participants WHERE id = \(id)",
       logger: connection.logger
     )
     for try await (id, createdAt, name) in rows.decode((UUID, Date, String).self, context: .default) {
-      return UserModel(
+      return ParticipantModel(
         id: id,
         createdAt: createdAt,
         name: name
       )
     }
-    throw Persistence.Error.userMissing(id: id)
+    throw Persistence.Error.participantMissing(id: id)
   }
 
-  func getRoom(id: UUID) async throws -> RoomModel {
+  func getRoom(for id: UUID) async throws -> RoomModel {
     let rows = try await connection.query(
       "SELECT id, created_at, name, description FROM rooms WHERE id = \(id);",
       logger: connection.logger
@@ -107,11 +107,11 @@ actor Postgres: Persistable {
 
 extension Postgres {
   func setupDatabase() async throws {
-    try await self.setupUsersTable()
+    try await self.setupParticipantsTable()
     try await self.setupRoomsTable()
   }
 
-  func setupUsersTable() async throws {
+  func setupParticipantsTable() async throws {
     // get list of tables
     let tables =
       try await connection
@@ -123,9 +123,9 @@ extension Postgres {
         """,
         logger: connection.logger
       )
-    // if "users" table exists already return
+    // if "participants" table exists already return
     for try await (tablename) in tables.decode(String.self, context: .default) {
-      if tablename == "users" {
+      if tablename == "participants" {
         return
       }
     }
@@ -134,7 +134,7 @@ extension Postgres {
     try await connection
       .query(
         """
-        CREATE TABLE users (
+        CREATE TABLE participants (
             "id" uuid PRIMARY KEY,
             "created_at" date NOT NULL,
             "name" text NOT NULL

@@ -2,18 +2,18 @@ import ComposableArchitecture
 import Foundation
 import SwiftUI
 
-// MARK: - Create room view
-struct CreateUserView: View {
+// MARK: - Register view
+struct RegisterView: View {
 
   @State var name: String = ""
-  let create: (String) -> Void
+  let register: (String) -> Void
 
   var body: some View {
     VStack {
       TextField("Enter user name", text: $name)
       Button(
         action: {
-          create(name)
+          register(name)
         },
         label: {
           Text("Create")

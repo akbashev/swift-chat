@@ -5,10 +5,10 @@ info:
 servers:
   - url: 'http://localhost:8080'
 paths:
-  /user:
+  /participant:
     post:
-      operationId: createUser
-      summary: Creates a new user
+      operationId: register
+      summary: Register a new participant
       requestBody:
         required: true
         content:
@@ -20,11 +20,11 @@ paths:
                   type: string
       responses:
         '200':
-          description: The created user
+          description: The created participant
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/UserResponse'
+                $ref: '#/components/schemas/ParticipantResponse'
   /room:
     post:
       operationId: createRoom
@@ -72,7 +72,7 @@ paths:
       summary: Subscribe to chat updates
       parameters:
         - in: header
-          name: user_id
+          name: participant_id
           schema:
             type: string
             format: uuid
@@ -98,7 +98,7 @@ paths:
                 $ref: '#/components/schemas/ChatMessage'
 components:
   schemas:
-    UserResponse:
+    ParticipantResponse:
       type: object
       required:
         - id
@@ -125,8 +125,8 @@ components:
     ChatMessage:
       type: object
       properties:
-        user:
-          $ref: '#/components/schemas/UserResponse'
+        participant:
+          $ref: '#/components/schemas/ParticipantResponse'
         room:
           $ref: '#/components/schemas/RoomResponse'
         message:
@@ -136,7 +136,7 @@ components:
             - $ref: '#/components/schemas/DisconnectMessage'
             - $ref: '#/components/schemas/HeartbeatMessage'
       required:
-        - user
+        - participant
         - room
         - message
     JoinMessage:
