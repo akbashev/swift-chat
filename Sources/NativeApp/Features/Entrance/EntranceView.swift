@@ -31,7 +31,7 @@ public struct EntranceView: View {
         ProgressView()
       }
     }
-    .onAppear {
+    .task {
       store.send(.onAppear)
     }
     .sheet(

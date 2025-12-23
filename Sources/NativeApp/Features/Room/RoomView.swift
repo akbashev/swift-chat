@@ -66,7 +66,7 @@ public struct RoomView: View {
         send: { store.send(.sendButtonTapped) }
       )
     }
-    .onAppear {
+    .task {
       store.send(.onAppear)
     }
     .onDisappear {
