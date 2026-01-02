@@ -2,14 +2,13 @@ import ComposableArchitecture
 import Foundation
 import SwiftUI
 
-// MARK: - Register view
-struct RegisterView: View {
+struct LoginView: View {
 
   @State var name: String = ""
   @State var password: String = ""
   let error: String?
-  let register: (String, String) -> Void
-  let switchToLogin: () -> Void
+  let login: (String, String) -> Void
+  let switchToRegister: () -> Void
 
   var body: some View {
     VStack {
@@ -23,42 +22,23 @@ struct RegisterView: View {
       SecureField("Enter password", text: $password)
       Button(
         action: {
-          register(name, password)
+          login(name, password)
         },
         label: {
-          Text("Create")
+          Text("Sign in")
         }
       ).disabled(name.count < 3 || password.count < 6)
       Button(
         action: {
-          switchToLogin()
+          switchToRegister()
         },
         label: {
-          Text("Sign in instead")
+          Text("Create account")
         }
       )
       .buttonStyle(.borderless)
     }
     .padding()
     .interactiveDismissDisabled()
-  }
-}
-
-extension View {
-  @ViewBuilder
-  func disableAutoCapitalizationIfAvailable() -> some View {
-    #if os(iOS)
-    if #available(iOS 15.0, *) {
-      self
-        .textInputAutocapitalization(.never)
-        .disableAutocorrection(true)
-    } else {
-      self
-        .autocapitalization(.none)
-        .disableAutocorrection(true)
-    }
-    #else
-    self
-    #endif
   }
 }

@@ -9,29 +9,37 @@ actor Postgres: Persistable {
     switch input {
     case .participant(let participant):
       try await connection.query(
-        "INSERT INTO participants (id, created_at, name) VALUES (\(participant.id), \(participant.createdAt), \(participant.name))",
+        "INSERT INTO participants (id, created_at, name, password_hash) VALUES (\(participant.id), \(participant.createdAt), \(participant.name), \(participant.passwordHash))",
         logger: connection.logger
       )
+    case .participantUpdate:
+      break
     case .room(let room):
       try await connection.query(
         "INSERT INTO rooms (id, created_at, name, description) VALUES (\(room.id), \(room.createdAt), \(room.name), \(room.description))",
         logger: connection.logger
       )
+    case .roomUpdate:
+      break
     }
   }
 
   func update(input: Persistence.Input) async throws {
     switch input {
-    case .participant(let participant):
+    case .participantUpdate(let participant):
       try await connection.query(
         "UPDATE participants SET \"name\" = \(participant.name) WHERE id = \(participant.id)",
         logger: connection.logger
       )
-    case .room(let room):
+    case .participant:
+      break
+    case .roomUpdate(let room):
       try await connection.query(
         "UPDATE rooms SET \"name\" = \(room.name), \"description\" = \(room.description) WHERE id = \(room.id)",
         logger: connection.logger
       )
+    case .room:
+      break
     }
   }
 
@@ -48,6 +56,45 @@ actor Postgres: Persistable {
       )
     }
     throw Persistence.Error.participantMissing(id: id)
+  }
+
+  func getParticipant(named name: String) async throws -> ParticipantModel {
+    let rows = try await connection.query(
+      "SELECT id, created_at, name FROM participants WHERE name = \(name) LIMIT 1",
+      logger: connection.logger
+    )
+    for try await (id, createdAt, name) in rows.decode((UUID, Date, String).self, context: .default) {
+      return ParticipantModel(
+        id: id,
+        createdAt: createdAt,
+        name: name
+      )
+    }
+    throw Persistence.Error.participantMissing(name: name)
+  }
+
+  func getParticipantAuth(named name: String) async throws -> ParticipantAuth {
+    let rows = try await connection.query(
+      "SELECT id, created_at, name, password_hash FROM participants WHERE name = \(name) LIMIT 1",
+      logger: connection.logger
+    )
+    for try await (id, createdAt, name, storedHash) in rows.decode(
+      (UUID, Date, String, String?).self,
+      context: .default
+    ) {
+      guard let storedHash else {
+        throw Persistence.Error.invalidCredentials(name: name)
+      }
+      return ParticipantAuth(
+        participant: ParticipantModel(
+          id: id,
+          createdAt: createdAt,
+          name: name
+        ),
+        passwordHash: storedHash
+      )
+    }
+    throw Persistence.Error.participantMissing(name: name)
   }
 
   func getRoom(for id: UUID) async throws -> RoomModel {
@@ -126,6 +173,7 @@ extension Postgres {
     // if "participants" table exists already return
     for try await (tablename) in tables.decode(String.self, context: .default) {
       if tablename == "participants" {
+        try await self.ensureParticipantsSchema()
         return
       }
     }
@@ -137,11 +185,19 @@ extension Postgres {
         CREATE TABLE participants (
             "id" uuid PRIMARY KEY,
             "created_at" date NOT NULL,
-            "name" text NOT NULL
+            "name" text NOT NULL,
+            "password_hash" text
         );
         """,
         logger: connection.logger
       )
+  }
+
+  func ensureParticipantsSchema() async throws {
+    try await connection.query(
+      "ALTER TABLE participants ADD COLUMN IF NOT EXISTS password_hash text;",
+      logger: connection.logger
+    )
   }
 
   func setupRoomsTable() async throws {

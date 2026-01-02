@@ -11,6 +11,8 @@ protocol Persistable: Sendable {
   func searchRoom(query: String) async throws -> [RoomModel]
 
   func getParticipant(for id: UUID) async throws -> ParticipantModel
+  func getParticipant(named name: String) async throws -> ParticipantModel
+  func getParticipantAuth(named name: String) async throws -> ParticipantAuth
 }
 
 public actor Persistence {
@@ -26,11 +28,15 @@ public actor Persistence {
     case roomMissing(id: UUID)
     case roomMissing(name: String)
     case participantMissing(id: UUID)
+    case participantMissing(name: String)
+    case invalidCredentials(name: String)
   }
 
   public enum Input: Sendable, Codable, Equatable {
-    case participant(ParticipantModel)
+    case participant(CreateParticipant)
+    case participantUpdate(ParticipantModel)
     case room(RoomModel)
+    case roomUpdate(RoomModel)
   }
 
   private let persistance: any Persistable
@@ -45,6 +51,14 @@ public actor Persistence {
 
   public func getParticipant(for id: UUID) async throws -> ParticipantModel {
     try await self.persistance.getParticipant(for: id)
+  }
+
+  public func getParticipant(named name: String) async throws -> ParticipantModel {
+    try await self.persistance.getParticipant(named: name)
+  }
+
+  public func getParticipantAuth(named name: String) async throws -> ParticipantAuth {
+    try await self.persistance.getParticipantAuth(named: name)
   }
 
   public func getRoom(for id: UUID) async throws -> RoomModel {

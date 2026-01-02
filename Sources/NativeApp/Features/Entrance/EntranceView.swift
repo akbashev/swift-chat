@@ -39,10 +39,17 @@ public struct EntranceView: View {
     ) { route in
       RouteView(
         route: route,
+        authError: store.authError,
         send: { action in
           switch action {
-          case .register(let name):
-            store.send(.register(name))
+          case .register(let name, let password):
+            store.send(.register(name, password))
+          case .login(let name, let password):
+            store.send(.login(name, password))
+          case .openRegister:
+            store.send(.openRegister)
+          case .openLogin:
+            store.send(.openLogin)
           case let .createRoom(name, description):
             store.send(.createRoom(name, description))
           }
@@ -66,6 +73,21 @@ public struct EntranceView: View {
             .foregroundColor(Color.primary)
         }
       }
+      if store.user != nil {
+        ToolbarItem(
+          id: "signOutButton",
+          placement: .automatic,
+          showsByDefault: true
+        ) {
+          Button(action: {
+            store.send(.signOut, animation: .default)
+          }) {
+            Text("Sign out")
+              .font(.body)
+              .foregroundColor(Color.primary)
+          }
+        }
+      }
     }
   }
 }
@@ -75,20 +97,41 @@ struct RouteView: View {
   @Environment(\.dismiss) var dismiss
 
   enum Action {
-    case register(name: String)
+    case register(name: String, password: String)
+    case login(name: String, password: String)
+    case openRegister
+    case openLogin
     case createRoom(name: String, description: String?)
   }
 
   let route: Entrance.State.Navigation.SheetRoute
+  let authError: String?
   let send: (Action) -> Void
 
   var body: some View {
     NavigationStack {
       switch route {
+      case .login:
+        LoginView(
+          error: authError,
+          login: { userName, password in
+            send(.login(name: userName, password: password))
+          },
+          switchToRegister: {
+            send(.openRegister)
+          }
+        )
+        .navigationTitle("Sign in")
       case .register:
-        RegisterView { userName in
-          send(.register(name: userName))
-        }
+        RegisterView(
+          error: authError,
+          register: { userName, password in
+            send(.register(name: userName, password: password))
+          },
+          switchToLogin: {
+            send(.openLogin)
+          }
+        )
         .navigationTitle("Create user")
       case .createRoom:
         CreateRoomView { roomName, description in

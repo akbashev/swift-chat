@@ -1,8 +1,10 @@
 import AsyncAlgorithms
+import AuthCore
 import Foundation
 import HummingbirdCore
 import HummingbirdWebSocket
 import Models
+import OpenAPIRuntime
 import Persistence
 import ServiceLifecycle
 import WSCore
@@ -133,26 +135,45 @@ public struct Api: APIProtocol {
     else {
       throw Api.Error.noConnection
     }
+    guard
+      let password =
+        switch input.body {
+        case .json(let payload): payload.password
+        }
+    else {
+      throw Api.Error.noConnection
+    }
+    let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPassword.isEmpty else {
+      throw Api.Error.noConnection
+    }
     let id = UUID()
-    try await persistence.create(
-      .participant(
-        .init(
-          id: id,
-          createdAt: .init(),
-          name: name
-        )
-      )
-    )
-    return .ok(
-      .init(
-        body: .json(
+    do {
+      _ = try await persistence.getParticipantAuth(named: name)
+      return .conflict(.init())
+    } catch Persistence.Error.participantMissing {
+      let passwordHash = try await PasswordHasher.hash(trimmedPassword)
+      try await persistence.create(
+        .participant(
           .init(
-            id: id.uuidString,
-            name: name
+            id: id,
+            createdAt: .init(),
+            name: name,
+            passwordHash: passwordHash
           )
         )
       )
-    )
+      return .ok(
+        .init(
+          body: .json(
+            .init(
+              id: id.uuidString,
+              name: name
+            )
+          )
+        )
+      )
+    }
   }
 
   public func createRoom(_ input: Operations.CreateRoom.Input) async throws -> Operations.CreateRoom.Output {
@@ -190,6 +211,50 @@ public struct Api: APIProtocol {
         )
       )
     )
+  }
+
+  public func login(
+    _ input: Operations.Login.Input
+  ) async throws -> Operations.Login.Output {
+    guard
+      let name =
+        switch input.body {
+        case .json(let payload): payload.name
+        }
+    else {
+      throw Api.Error.noConnection
+    }
+    guard
+      let password =
+        switch input.body {
+        case .json(let payload): payload.password
+        }
+    else {
+      throw Api.Error.noConnection
+    }
+    let trimmedPassword = password.trimmingCharacters(in: .whitespacesAndNewlines)
+    guard !trimmedPassword.isEmpty else {
+      throw Api.Error.noConnection
+    }
+    do {
+      let auth = try await persistence.getParticipantAuth(named: name)
+      let matches = try await PasswordHasher.verify(trimmedPassword, hash: auth.passwordHash)
+      guard matches else {
+        return .unauthorized(.init())
+      }
+      return .ok(
+        .init(
+          body: .json(
+            .init(
+              id: auth.participant.id.uuidString,
+              name: auth.participant.name
+            )
+          )
+        )
+      )
+    } catch {
+      return .unauthorized(.init())
+    }
   }
 
   public func shouldUpgrade(

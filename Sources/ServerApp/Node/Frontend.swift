@@ -1,3 +1,4 @@
+import AuthCore
 import Backend
 import Distributed
 import DistributedCluster
@@ -23,6 +24,7 @@ struct Frontend: Service {
 
   func run() async throws {
     let env = Environment()
+    let authConfiguration = try AuthConfiguration(environment: env)
     let config = try PostgresConfig(
       host: self.clusterSystem.cluster.node.endpoint.host,
       environment: env
@@ -35,15 +37,33 @@ struct Frontend: Service {
       logger: Logger(label: "ParticipantRoomConnections"),
       persistence: persistence
     )
-    let router = Router()
+    let router = Router(context: BasicAuthRequestContext<ParticipantModel>.self)
     let assetsURL = WebAppAssets.publicRoot
     router.add(middleware: FileMiddleware(assetsURL, searchForIndexHtml: false))
     let handler = Api(
       participantRoomConnections: participantConnectionManager,
       persistence: persistence
     )
-    try handler.registerHandlers(on: router)
-    WebAppRoutes(persistence: persistence).register(on: router)
+    let authRouter = router.group("auth")
+    authRouter.add(
+      middleware: BasicParticipantAuthenticator(persistence: persistence)
+    )
+    authRouter.post("token") { _, context in
+      let user = try context.requireIdentity()
+      let token = try authConfiguration.jwtSigner.sign(subject: user.id.uuidString)
+      return TokenResponse(accessToken: token, tokenType: "bearer", expiresIn: authConfiguration.jwtSigner.ttlSeconds)
+    }
+
+    let apiRouter = router.group()
+    apiRouter.add(
+      middleware: JWTAuthenticator(
+        signer: authConfiguration.jwtSigner,
+        persistence: persistence,
+        exemptPaths: Set(["/participant", "/participant/login"])
+      )
+    )
+    try handler.registerHandlers(on: apiRouter)
+    WebAppRoutes(persistence: persistence, jwtSigner: authConfiguration.jwtSigner).register(on: router)
     // Separate router for websocket upgrade
     let wsRouter = Router(context: BasicWebSocketRequestContext.self)
     wsRouter.add(middleware: LogRequestsMiddleware(.debug))
@@ -54,9 +74,19 @@ struct Frontend: Service {
     }
     wsRouter.ws("app/chat/ws") { request, _ in
       guard
-        request.uri.queryParameters["participant_id"] != nil,
-        request.uri.queryParameters["room_id"] != nil
+        let participantIdValue = request.uri.queryParameters["participant_id"].map(String.init),
+        request.uri.queryParameters["room_id"] != nil,
+        let cookieHeader = request.headers[.cookie],
+        let token = parseCookies(cookieHeader)["auth_token"]
       else {
+        return .dontUpgrade
+      }
+      do {
+        let claims = try authConfiguration.jwtSigner.verify(token: token)
+        guard claims.sub == participantIdValue else {
+          return .dontUpgrade
+        }
+      } catch {
         return .dontUpgrade
       }
       return .upgrade([:])
@@ -95,4 +125,14 @@ struct Frontend: Service {
     )
     try await app.run()
   }
+}
+
+private func parseCookies(_ raw: String) -> [String: String] {
+  var values: [String: String] = [:]
+  for part in raw.split(separator: ";") {
+    let pair = part.split(separator: "=", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespaces) }
+    guard pair.count == 2 else { continue }
+    values[pair[0]] = pair[1]
+  }
+  return values
 }

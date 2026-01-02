@@ -4,11 +4,14 @@ info:
   version: 1.0.0
 servers:
   - url: 'http://localhost:8080'
+security:
+  - bearerAuth: []
 paths:
   /participant:
     post:
       operationId: register
       summary: Register a new participant
+      security: []
       requestBody:
         required: true
         content:
@@ -18,6 +21,12 @@ paths:
               properties:
                 name:
                   type: string
+                password:
+                  type: string
+                  format: password
+              required:
+                - name
+                - password
       responses:
         '200':
           description: The created participant
@@ -25,6 +34,37 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ParticipantResponse'
+        '409':
+          description: Participant already exists
+  /participant/login:
+    post:
+      operationId: login
+      summary: Login an existing participant
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                password:
+                  type: string
+                  format: password
+              required:
+                - name
+                - password
+      responses:
+        '200':
+          description: The authenticated participant
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ParticipantResponse'
+        '401':
+          description: Invalid credentials
   /room:
     post:
       operationId: createRoom
@@ -97,6 +137,11 @@ paths:
               schema:
                 $ref: '#/components/schemas/ChatMessage'
 components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
   schemas:
     ParticipantResponse:
       type: object

@@ -1,5 +1,5 @@
 {
-  "originHash" : "e807bc677971d6e453dcbb06b8113adbb5ea5ed13c472b06b53f051bc8d857c3",
+  "originHash" : "9897595ddf073716f16339698aababd9a916dd08cef8ab309ea1cb6a919dc774",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -60,8 +60,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/elementary-swift/elementary-htmx",
       "state" : {
-        "branch" : "main",
-        "revision" : "e71306c415fa88552b993a54dced10f1722b2a71"
+        "revision" : "f7ba147f2a076142a90a4f8300a89584164dba6d",
+        "version" : "0.5.1"
       }
     },
     {
@@ -80,6 +80,15 @@
       "state" : {
         "revision" : "3ae359b1bb1e72378ed43b59fdcd4d44cac5d7a4",
         "version" : "2.16.0"
+      }
+    },
+    {
+      "identity" : "hummingbird-auth",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hummingbird-project/hummingbird-auth.git",
+      "state" : {
+        "revision" : "7d7874e4cbae8dddd8b2ceec6b6c9dda3c35badb",
+        "version" : "2.1.0"
       }
     },
     {
@@ -290,6 +299,15 @@
       }
     },
     {
+      "identity" : "swift-extras-base64",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swift-extras/swift-extras-base64.git",
+      "state" : {
+        "revision" : "dc8121fdd2b444c97d6b0534e8ad4ddecbe0d5f4",
+        "version" : "1.0.0"
+      }
+    },
+    {
       "identity" : "swift-http-structured-headers",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-http-structured-headers.git",
@@ -420,8 +438,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-openapi-runtime.git",
       "state" : {
-        "revision" : "8f33cc5dfe81169fb167da73584b9c72c3e8bc23",
-        "version" : "1.8.2"
+        "revision" : "7cdf33371bf89b23b9cf4fd3ce8d3c825c28fbe8",
+        "version" : "1.9.0"
       }
     },
     {

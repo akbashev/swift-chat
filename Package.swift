@@ -22,13 +22,14 @@ package.dependencies += [
   // Apple
   .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.0"),
   .package(url: "https://github.com/apple/swift-openapi-generator.git", from: "1.10.0"),
-  .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.8.0"),
+  .package(url: "https://github.com/apple/swift-openapi-runtime.git", from: "1.9.0"),
   .package(url: "https://github.com/apple/swift-openapi-urlsession.git", from: "1.1.0"),
   .package(url: "https://github.com/apple/swift-async-algorithms.git", from: "1.0.0"),
   // Swift-server
   .package(url: "https://github.com/swift-server/swift-openapi-hummingbird.git", from: "2.0.0"),
   // Hummingbird
   .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.16.0"),
+  .package(url: "https://github.com/hummingbird-project/hummingbird-auth.git", from: "2.0.0"),
   .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "2.2.0"),
   .package(url: "https://github.com/hummingbird-community/hummingbird-elementary.git", from: "0.4.2"),
   // Vapor
@@ -39,14 +40,22 @@ package.dependencies += [
   // Elementary
   .package(url: "https://github.com/elementary-swift/elementary-ui.git", from: "0.1.0"),
   .package(url: "https://github.com/elementary-swift/elementary.git", from: "0.6.0"),
-  .package(url: "https://github.com/elementary-swift/elementary-htmx", branch: "main"),
+  .package(url: "https://github.com/elementary-swift/elementary-htmx.git", from: "0.5.0"),
 ]
 
 package.targets += [
   // Modules
   .target(
+    name: "AuthCore",
+    dependencies: [
+      .product(name: "HummingbirdBcrypt", package: "hummingbird-auth"),
+      .product(name: "HummingbirdAuth", package: "hummingbird-auth"),
+    ]
+  ),
+  .target(
     name: "Backend",
     dependencies: [
+      "AuthCore",
       "Models",
       "Persistence",
       .product(name: "OpenAPIRuntime", package: "swift-openapi-runtime"),
@@ -90,15 +99,12 @@ package.targets += [
       .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
       .product(name: "Dependencies", package: "swift-dependencies"),
       .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
-    ],
-    swiftSettings: [
-      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-      .enableUpcomingFeature("InferIsolatedConformances"),
     ]
   ),
   .target(
     name: "WebApp",
     dependencies: [
+      "AuthCore",
       "Models",
       "Persistence",
       .product(name: "Hummingbird", package: "hummingbird"),
@@ -109,27 +115,12 @@ package.targets += [
     ],
     resources: [
       .copy("Public")
-    ],
-    swiftSettings: [
-      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-      .enableUpcomingFeature("InferIsolatedConformances"),
-    ]
-  ),
-  .executableTarget(
-    name: "CLIApp",
-    dependencies: [
-      "Client",
-      .product(name: "ArgumentParser", package: "swift-argument-parser"),
-    ],
-    swiftSettings: [
-      .defaultIsolation(MainActor.self),
-      .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
-      .enableUpcomingFeature("InferIsolatedConformances"),
     ]
   ),
   .executableTarget(
     name: "ServerApp",
     dependencies: [
+      "AuthCore",
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "Dependencies", package: "swift-dependencies"),
       .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
@@ -138,3 +129,13 @@ package.targets += [
     ]
   ),
 ]
+
+let upcomingConcurrencySettings: [SwiftSetting] = [
+  .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
+  .enableUpcomingFeature("InferIsolatedConformances"),
+]
+
+for target in package.targets {
+  let existing = target.swiftSettings ?? []
+  target.swiftSettings = existing + upcomingConcurrencySettings
+}

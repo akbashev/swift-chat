@@ -36,9 +36,35 @@ struct HeaderView: HTML, Sendable {
         p { "HTMX server-rendered rooms" }
       }
       if let participant {
-        div(.class("status-pill")) {
-          span(.class("status-dot")) {}
-          span { "Signed in as \(participant.name)" }
+        div(.class("header-actions")) {
+          details(.class("user-menu")) {
+            summary {
+              span(.class("user-avatar")) {
+                "\(participant.name.prefix(1).uppercased())"
+                span(.class("user-status-dot")) {}
+              }
+              span { "Profile" }
+              span(.class("menu-dots")) {
+                span(.class("dot")) {}
+                span(.class("dot")) {}
+                span(.class("dot")) {}
+              }
+            }
+            div(.class("user-menu-panel")) {
+              div(.class("user-menu-label")) { participant.name }
+              form(
+                .hx.post("/app/logout"),
+                .hx.target("#main"),
+                .hx.swap(.innerHTML)
+              ) {
+                button(
+                  .type(.submit),
+                  .class("secondary"),
+                  .on(.click, "this.closest('details').removeAttribute('open')")
+                ) { "Sign out" }
+              }
+            }
+          }
         }
       }
     }
@@ -54,7 +80,7 @@ struct RegistrationFragment: HTML, Sendable {
         small { error }
       }
       h3 { "Create your profile" }
-      p(.class("subtle")) { "Pick a name to join the rooms." }
+      p(.class("subtle")) { "Pick a name and password to join the rooms." }
       form(
         .hx.post("/app/register"),
         .hx.target("#main"),
@@ -67,9 +93,62 @@ struct RegistrationFragment: HTML, Sendable {
             .placeholder("Display name"),
             .autocomplete("name")
           )
+          input(
+            .type(.password),
+            .name("password"),
+            .placeholder("Password"),
+            .autocomplete("new-password")
+          )
           button(.type(.submit)) { "Join chat" }
         }
       }
+      button(
+        .class("secondary"),
+        .hx.get("/app/login"),
+        .hx.target("#main"),
+        .hx.swap(.innerHTML)
+      ) { "Already have an account? Sign in" }
+    }
+  }
+}
+
+struct LoginFragment: HTML, Sendable {
+  let error: String?
+
+  var body: some HTML {
+    section(.class("glass-card")) {
+      if let error {
+        small { error }
+      }
+      h3 { "Welcome back" }
+      p(.class("subtle")) { "Sign in to continue." }
+      form(
+        .hx.post("/app/login"),
+        .hx.target("#main"),
+        .hx.swap(.innerHTML)
+      ) {
+        div(.class("form-row")) {
+          input(
+            .type(.text),
+            .name("name"),
+            .placeholder("Display name"),
+            .autocomplete("name")
+          )
+          input(
+            .type(.password),
+            .name("password"),
+            .placeholder("Password"),
+            .autocomplete("current-password")
+          )
+          button(.type(.submit)) { "Sign in" }
+        }
+      }
+      button(
+        .class("secondary"),
+        .hx.get("/app/register"),
+        .hx.target("#main"),
+        .hx.swap(.innerHTML)
+      ) { "Need an account? Register" }
     }
   }
 }
@@ -187,7 +266,17 @@ struct RoomFragment: HTML, Sendable {
       .class("glass-card chat-shell"),
       .hx.ext(.ws),
       .ws.connect("/app/chat/ws?participant_id=\(participant.id.uuidString)&room_id=\(room.id.uuidString)"),
-      .hx.target("#message-list")
+      .hx.target("#message-list"),
+      .init(
+        name: "hx-on::htmx:wsOpen",
+        value:
+          "this.querySelector('[data-connection-status]').textContent='Connected'; this.querySelector('[data-status-dot]').classList.remove('offline'); this.querySelector('[data-message-input]').disabled=false; this.querySelector('[data-message-send]').disabled=false;"
+      ),
+      .init(
+        name: "hx-on::htmx:wsClose",
+        value:
+          "this.querySelector('[data-connection-status]').textContent='Disconnected'; this.querySelector('[data-status-dot]').classList.add('offline'); this.querySelector('[data-message-input]').disabled=true; this.querySelector('[data-message-send]').disabled=true;"
+      )
     ) {
       div(.class("row")) {
         button(
@@ -198,23 +287,27 @@ struct RoomFragment: HTML, Sendable {
         div {
           h3 { room.name }
           div(.class("status-pill")) {
-            span(.class("status-dot")) {}
-            span { "Connected" }
+            span(.class("status-dot"), .init(name: "data-status-dot", value: "")) {}
+            span(.init(name: "data-connection-status", value: "")) { "Connected" }
           }
         }
       }
       div(.id("message-list"), .class("message-list")) {
-        p(.class("subtle")) { "No messages yet. Say hello." }
+        p(.class("subtle"), .id("empty-message")) { "No messages yet. Say hello." }
       }
-      form(.ws.send) {
+      form(
+        .ws.send,
+        .init(name: "hx-on::htmx:wsAfterSend", value: "this.reset()")
+      ) {
         div(.class("form-row")) {
           input(
             .type(.text),
             .name("message"),
             .placeholder("Type a message"),
-            .autocomplete(.off)
+            .autocomplete(.off),
+            .init(name: "data-message-input", value: "")
           )
-          button(.type(.submit)) { "Send" }
+          button(.type(.submit), .init(name: "data-message-send", value: "")) { "Send" }
         }
       }
     }
@@ -228,6 +321,7 @@ struct MessageUpdate: HTML, Sendable {
   var body: some HTML {
     switch message.message {
     case .JoinMessage:
+      div(.hx.swapOOB(.delete, "#empty-message")) {}
       div(
         .hx.swapOOB(.beforeEnd, "#message-list")
       ) {
@@ -236,6 +330,7 @@ struct MessageUpdate: HTML, Sendable {
         }
       }
     case .DisconnectMessage:
+      div(.hx.swapOOB(.delete, "#empty-message")) {}
       div(
         .hx.swapOOB(.beforeEnd, "#message-list")
       ) {
@@ -245,6 +340,7 @@ struct MessageUpdate: HTML, Sendable {
       }
     case .TextMessage(let text):
       if message.participant.id == currentUserId {
+        div(.hx.swapOOB(.delete, "#empty-message")) {}
         div(
           .hx.swapOOB(.beforeEnd, "#message-list")
         ) {
@@ -254,6 +350,7 @@ struct MessageUpdate: HTML, Sendable {
           }
         }
       } else {
+        div(.hx.swapOOB(.delete, "#empty-message")) {}
         div(
           .hx.swapOOB(.beforeEnd, "#message-list")
         ) {

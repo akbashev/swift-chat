@@ -11,7 +11,8 @@ extension Client: DependencyKey {
 
     return Client(
       serverURL: URL(string: baseUrl)!,
-      transport: URLSessionTransport()
+      transport: URLSessionTransport(),
+      middlewares: [AuthTokenMiddleware()]
     )
   }()
 }

@@ -1,3 +1,4 @@
+import AuthCore
 import Elementary
 import Foundation
 import Hummingbird
@@ -9,6 +10,7 @@ public struct WebAppRoutes: Sendable {
 
   private enum CookieKey {
     static let participantId = "participant_id"
+    static let authToken = "auth_token"
   }
 
   enum Error: Swift.Error {
@@ -16,12 +18,14 @@ public struct WebAppRoutes: Sendable {
   }
 
   let persistence: Persistence
+  let jwtSigner: JWTSigner
 
-  public init(persistence: Persistence) {
+  public init(persistence: Persistence, jwtSigner: JWTSigner) {
     self.persistence = persistence
+    self.jwtSigner = jwtSigner
   }
 
-  public func register(on router: Router<BasicRequestContext>) {
+  public func register<Context: RequestContext>(on router: Router<Context>) {
     let app = router.group("app")
 
     app.get("") { request, _ in
@@ -40,28 +44,68 @@ public struct WebAppRoutes: Sendable {
       return htmlResponse(LobbyFragment(participant: participant, rooms: []))
     }
 
+    app.get("register") { _, _ in
+      htmlResponse(RegistrationFragment(error: nil))
+    }
+
+    app.get("login") { _, _ in
+      htmlResponse(LoginFragment(error: nil))
+    }
+
     app.post("register") { request, _ in
       let fields = try await formFields(from: request)
       let rawName = fields["name"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let rawPassword = fields["password"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
       guard !rawName.isEmpty else {
         return htmlResponse(RegistrationFragment(error: "Please enter a name to join."))
       }
-      let participantId = UUID()
-      try await persistence.create(
-        .participant(
-          .init(
-            id: participantId,
-            createdAt: .init(),
-            name: rawName
-          )
-        )
-      )
-      let participant = try await persistence.getParticipant(for: participantId)
-      var response = htmlResponse(LobbyFragment(participant: participant, rooms: []))
+      guard rawPassword.count >= 6 else {
+        return htmlResponse(RegistrationFragment(error: "Password must be at least 6 characters."))
+      }
+      switch try await resolveRegistration(name: rawName, password: rawPassword) {
+      case .success(let participant):
+        return responseForParticipant(participant)
+      case .conflict:
+        return htmlResponse(RegistrationFragment(error: "Name is already taken. Please choose another."))
+      }
+    }
+
+    app.post("login") { request, _ in
+      let fields = try await formFields(from: request)
+      let rawName = fields["name"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      let rawPassword = fields["password"]?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+      guard !rawName.isEmpty else {
+        return htmlResponse(LoginFragment(error: "Please enter your name."))
+      }
+      guard !rawPassword.isEmpty else {
+        return htmlResponse(LoginFragment(error: "Please enter your password."))
+      }
+      switch try await resolveLogin(name: rawName, password: rawPassword) {
+      case .success(let participant):
+        return responseForParticipant(participant)
+      case .invalidCredentials:
+        return htmlResponse(LoginFragment(error: "Invalid credentials."))
+      }
+    }
+
+    app.post("logout") { _, _ in
+      var response = htmlResponse(RegistrationFragment(error: nil))
       response.headers.append(
         .init(
           name: .setCookie,
-          value: "\(CookieKey.participantId)=\(participantId.uuidString); Path=/; SameSite=Lax"
+          value: "\(CookieKey.participantId)=; Path=/; Max-Age=0; SameSite=Lax"
+        )
+      )
+      response.headers.append(
+        .init(
+          name: .setCookie,
+          value: "\(CookieKey.authToken)=; Path=/; Max-Age=0; SameSite=Lax; HttpOnly"
+        )
+      )
+      response.headers.append(
+        .init(
+          name: .init("HX-Redirect")!,
+          value: "/app"
         )
       )
       return response
@@ -135,12 +179,87 @@ public struct WebAppRoutes: Sendable {
 }
 
 extension WebAppRoutes {
+  private enum RegistrationOutcome {
+    case success(ParticipantModel)
+    case conflict
+  }
+
+  private enum LoginOutcome {
+    case success(ParticipantModel)
+    case invalidCredentials
+  }
+
+  private func resolveRegistration(
+    name: String,
+    password: String
+  ) async throws -> RegistrationOutcome {
+    do {
+      _ = try await persistence.getParticipantAuth(named: name)
+      return .conflict
+    } catch Persistence.Error.participantMissing(name:) {
+      let participantId = UUID()
+      let passwordHash = try await PasswordHasher.hash(password)
+      try await persistence.create(
+        .participant(
+          .init(
+            id: participantId,
+            createdAt: .init(),
+            name: name,
+            passwordHash: passwordHash
+          )
+        )
+      )
+      let participant = try await persistence.getParticipant(for: participantId)
+      return .success(participant)
+    }
+  }
+
+  private func resolveLogin(
+    name: String,
+    password: String
+  ) async throws -> LoginOutcome {
+    do {
+      let auth = try await persistence.getParticipantAuth(named: name)
+      let matches = try await PasswordHasher.verify(password, hash: auth.passwordHash)
+      return matches ? .success(auth.participant) : .invalidCredentials
+    } catch {
+      return .invalidCredentials
+    }
+  }
+
+  private func responseForParticipant(_ participant: ParticipantModel) -> HTMLResponse {
+    let token = (try? jwtSigner.sign(subject: participant.id.uuidString)) ?? ""
+    var response = htmlResponse(LobbyFragment(participant: participant, rooms: []))
+    response.headers.append(
+      .init(
+        name: .setCookie,
+        value: "\(CookieKey.participantId)=\(participant.id.uuidString); Path=/; SameSite=Lax"
+      )
+    )
+    response.headers.append(
+      .init(
+        name: .setCookie,
+        value: "\(CookieKey.authToken)=\(token); Path=/; SameSite=Lax; HttpOnly"
+      )
+    )
+    response.headers.append(
+      .init(
+        name: .init("HX-Redirect")!,
+        value: "/app"
+      )
+    )
+    return response
+  }
+
   private func loadParticipant(from request: Request) async throws -> ParticipantModel {
     guard
       let cookies = request.headers[.cookie],
-      let participantId = parseCookies(cookies)[CookieKey.participantId],
-      let uuid = UUID(uuidString: participantId)
+      let token = parseCookies(cookies)[CookieKey.authToken]
     else {
+      throw Error.missingParticipant
+    }
+    let claims = try jwtSigner.verify(token: token)
+    guard let uuid = UUID(uuidString: claims.sub) else {
       throw Error.missingParticipant
     }
     return try await persistence.getParticipant(for: uuid)

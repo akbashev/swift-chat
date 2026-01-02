@@ -6,6 +6,7 @@ public struct Entrance: Reducer, Sendable {
 
   @Dependency(\.client) var client
   @Dependency(\.chatClient) var chatClient
+  @Dependency(\.authClient) var authClient
 
   @ObservableState
   public struct State {
@@ -13,11 +14,13 @@ public struct Entrance: Reducer, Sendable {
     enum Navigation: Equatable, Identifiable {
       enum SheetRoute: Equatable, Identifiable {
         case register
+        case login
         case createRoom
 
         public var id: String {
           switch self {
           case .register: "register"
+          case .login: "login"
           case .createRoom: "createRoom"
           }
         }
@@ -45,6 +48,7 @@ public struct Entrance: Reducer, Sendable {
     }
 
     @Shared(.fileStorage(.user)) var user: ParticipantPresentation?
+    @Shared(.appStorage("authToken")) var authToken: String?
 
     @Presents var room: Room.State?
 
@@ -52,6 +56,7 @@ public struct Entrance: Reducer, Sendable {
     var query: String = ""
     var rooms: [RoomPresentation] = []
     var isLoading: Bool = false
+    var authError: String?
 
     public init() {}
   }
@@ -60,12 +65,17 @@ public struct Entrance: Reducer, Sendable {
     case binding(BindingAction<State>)
     case onAppear
     case openCreateRoom
+    case openRegister
+    case openLogin
+    case signOut
     case selectRoom(RoomPresentation)
-    case register(String)
+    case register(String, String)
+    case login(String, String)
     case createRoom(String, String?)
     case searchRoom(String)
     case didCreateRoom(Result<RoomPresentation, Error>)
     case didRegisterUser(Result<ParticipantPresentation, any Error>)
+    case didAuthenticate(Result<AuthToken, any Error>)
     case didSearchRoom(Result<[RoomPresentation], any Error>)
     case room(PresentationAction<Room.Action>)
   }
@@ -80,27 +90,71 @@ public struct Entrance: Reducer, Sendable {
       switch action {
       case .onAppear:
         if state.user == .none {
-          state.sheet = .register
+          state.sheet = .login
         }
         return .none
       case .selectRoom(let response):
         state.room = .init(user: state.user!, room: response)
         return .none
-      case .register(let userName):
+      case .openRegister:
+        state.sheet = .register
+        state.authError = nil
+        return .none
+      case .openLogin:
+        state.sheet = .login
+        state.authError = nil
+        return .none
+      case .register(let userName, let password):
         return .run { send in
-          await send(
-            .didRegisterUser(
-              Result {
-                try await ParticipantPresentation(
-                  client.register(body: .json(.init(name: userName)))
-                )
-              }
-            )
-          )
+          let registeredUser = await Result {
+            let user = try await client.register(body: .json(.init(name: userName, password: password)))
+            return try ParticipantPresentation(user)
+          }
+          await send(.didRegisterUser(registeredUser))
+          guard case .success = registeredUser else {
+            return
+          }
+          let tokenResult = await Result {
+            try await authClient.token(userName, password)
+          }
+          await send(.didAuthenticate(tokenResult))
+        }
+      case .login(let userName, let password):
+        return .run { send in
+          let loggedInUser = await Result {
+            let user = try await client.login(body: .json(.init(name: userName, password: password)))
+            return try ParticipantPresentation(user)
+          }
+          await send(.didRegisterUser(loggedInUser))
+          guard case .success = loggedInUser else {
+            return
+          }
+          let tokenResult = await Result {
+            try await authClient.token(userName, password)
+          }
+          await send(.didAuthenticate(tokenResult))
         }
       case .openCreateRoom:
         state.sheet = .createRoom
         return .none
+      case .signOut:
+        let room = state.room?.room
+        let user = state.user
+        state.$user.withLock { $0 = nil }
+        state.$authToken.withLock { $0 = nil }
+        state.room = nil
+        state.rooms = []
+        state.query = ""
+        state.sheet = .login
+        guard let room, let user else {
+          return .none
+        }
+        return .run { _ in
+          await self.chatClient.disconnect(
+            user: user,
+            from: room
+          )
+        }
       case .createRoom(let name, let description):
         return .run { send in
           await send(
@@ -139,8 +193,17 @@ public struct Entrance: Reducer, Sendable {
       case let .didRegisterUser(.success(user)):
         state.$user.withLock { $0 = user }
         state.sheet = .none
+        state.authError = nil
         return .none
-      case .didRegisterUser(.failure):
+      case let .didRegisterUser(.failure(error)):
+        state.authError = error.localizedDescription
+        return .none
+      case let .didAuthenticate(.success(token)):
+        state.$authToken.withLock { $0 = token.accessToken }
+        state.authError = nil
+        return .none
+      case let .didAuthenticate(.failure(error)):
+        state.authError = error.localizedDescription
         return .none
       case let .didCreateRoom(.success(room)):
         state.isLoading = false
