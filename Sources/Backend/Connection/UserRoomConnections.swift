@@ -16,11 +16,13 @@ public struct ParticipantRoomConnections: Service {
   public enum Connection: Identifiable, Sendable {
     case jsonl(JSONLConnection)
     case websocket(WebSocketConnection)
+    case htmxWebSocket(HTMXWebSocketConnection)
 
     public var id: String {
       switch self {
       case .jsonl(let connection): connection.id
       case .websocket(let connection): connection.id
+      case .htmxWebSocket(let connection): connection.id
       }
     }
 
@@ -30,6 +32,8 @@ public struct ParticipantRoomConnections: Service {
         try await connection.send(message: message)
       case .websocket(let connection):
         try await connection.send(message: message)
+      case .htmxWebSocket(let connection):
+        try await connection.send(message: message)
       }
     }
 
@@ -38,6 +42,8 @@ public struct ParticipantRoomConnections: Service {
       case .jsonl(let connection):
         connection.outbound.finish()
       case .websocket(let connection):
+        connection.outbound.finish()
+      case .htmxWebSocket(let connection):
         connection.outbound.finish()
       }
     }
@@ -194,6 +200,14 @@ public struct ParticipantRoomConnections: Service {
           break
         }
       }
+    case .htmxWebSocket(let webSocketConnection):
+      for try await input in webSocketConnection.inbound.messages(maxSize: 1_000_000) {
+        guard case let .text(text) = input else { continue }
+        guard let data = text.data(using: .utf8) else { continue }
+        guard let payload = try? self.decoder.decode(HTMXWSRequest.self, from: data) else { continue }
+        let message = Room.Message.message(payload.message, at: Date())
+        try await self.outboundConnections.send(message, to: connection.id)
+      }
     case .jsonl(let jsonlConnection):
       // We handle the stream as incoming messages emitted by this client
       // The `for try await` loop will suspend until a new message is available
@@ -342,6 +356,56 @@ extension ParticipantRoomConnections {
   ) async throws {
     try await self.outboundConnections.remove(connectionWithId: request.id)
   }
+
+  public func addHTMXWSConnectionFor(
+    request: ParticipantRoomConnections.Connection.RequestParameter,
+    inbound: WebSocketInboundStream
+  ) async throws -> Connection.HTMXWebSocketConnection.OutputStream {
+    let outbound = Connection.HTMXWebSocketConnection.OutputStream()
+    let room = try await self.findRoom(for: request)
+    let participantModel =
+      try await persistence
+      .getParticipant(for: request.participantId)
+    let participant = Participant(
+      actorSystem: self.actorSystem,
+      info: .init(
+        id: participantModel.id,
+        name: participantModel.name
+      ),
+      reply: { [weak outbound] messages in
+        for message in messages {
+          let response =
+            switch message {
+            case let .message(envelope):
+              ChatMessage(
+                participant: .init(
+                  id: envelope.participant.id.rawValue.uuidString,
+                  name: envelope.participant.name
+                ),
+                room: .init(
+                  id: envelope.room.id.rawValue.uuidString,
+                  name: envelope.room.name,
+                  description: envelope.room.description
+                ),
+                message: .init(envelope.message)
+              )
+            }
+          await outbound?.send(response)
+        }
+      }
+    )
+    let connection = Connection.htmxWebSocket(
+      .init(
+        requestParameter: request,
+        participant: participant,
+        room: room,
+        inbound: inbound,
+        outbound: outbound
+      )
+    )
+    self.connectionContinuation.yield(connection)
+    return outbound
+  }
 }
 
 extension Data {
@@ -416,6 +480,49 @@ extension ParticipantRoomConnections.Connection {
     func send(message: Room.Message) async throws {
       try await self.participant.send(message: message, to: self.room)
     }
+  }
+
+  public struct HTMXWebSocketConnection: Identifiable, Sendable {
+    public typealias OutputStream = AsyncChannel<ChatMessage>
+
+    public var id: String { self.requestParameter.id }
+    let requestParameter: RequestParameter
+
+    let participant: Participant
+    let room: Room
+
+    let inbound: WebSocketInboundStream
+    let outbound: OutputStream
+
+    func send(message: Room.Message) async throws {
+      try await self.participant.send(message: message, to: self.room)
+    }
+  }
+}
+
+private struct HTMXWSRequest: Decodable {
+  var message: String
+  var headers: HTMXHeaders?
+
+  enum CodingKeys: String, CodingKey {
+    case message
+    case headers = "HEADERS"
+  }
+}
+
+private struct HTMXHeaders: Decodable {
+  var hxRequest: String?
+  var hxTrigger: String?
+  var hxTriggerName: String?
+  var hxTarget: String?
+  var hxCurrentURL: String?
+
+  enum CodingKeys: String, CodingKey {
+    case hxRequest = "HX-Request"
+    case hxTrigger = "HX-Trigger"
+    case hxTriggerName = "HX-Trigger-Name"
+    case hxTarget = "HX-Target"
+    case hxCurrentURL = "HX-Current-URL"
   }
 }
 

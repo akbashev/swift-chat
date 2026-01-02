@@ -1,5 +1,5 @@
 {
-  "originHash" : "b60e30785a5f8a55bce8cf395d1210724169d0fa4e13e6ce83fd3a4c5ca16052",
+  "originHash" : "e807bc677971d6e453dcbb06b8113adbb5ea5ed13c472b06b53f051bc8d857c3",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -47,6 +47,33 @@
       }
     },
     {
+      "identity" : "elementary",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/elementary-swift/elementary",
+      "state" : {
+        "revision" : "65803c4770b6c8b6452c6ce83ab570c1b7042528",
+        "version" : "0.6.1"
+      }
+    },
+    {
+      "identity" : "elementary-htmx",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/elementary-swift/elementary-htmx",
+      "state" : {
+        "branch" : "main",
+        "revision" : "e71306c415fa88552b993a54dced10f1722b2a71"
+      }
+    },
+    {
+      "identity" : "elementary-ui",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/elementary-swift/elementary-ui.git",
+      "state" : {
+        "revision" : "9881d31f29d80d9a6dc9401ce9f63fdae58c57e5",
+        "version" : "0.1.0"
+      }
+    },
+    {
       "identity" : "hummingbird",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird.git",
@@ -56,12 +83,30 @@
       }
     },
     {
+      "identity" : "hummingbird-elementary",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/hummingbird-community/hummingbird-elementary.git",
+      "state" : {
+        "revision" : "131b42ae0a7839217c06291ef193d67fe348d7be",
+        "version" : "0.4.2"
+      }
+    },
+    {
       "identity" : "hummingbird-websocket",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/hummingbird-project/hummingbird-websocket.git",
       "state" : {
         "revision" : "716c54294152c6d3301a6239a1d74db57cbcd6dc",
         "version" : "2.6.0"
+      }
+    },
+    {
+      "identity" : "javascriptkit",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/swiftwasm/JavaScriptKit",
+      "state" : {
+        "revision" : "4b327dc40d3931c2236ed43c6b47325c17c88afe",
+        "version" : "0.37.0"
       }
     },
     {

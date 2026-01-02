@@ -6,8 +6,8 @@ import PackageDescription
 var package = Package(
   name: "swift-chat",
   platforms: [
-    .macOS("15.0"),
-    .iOS("18.0"),
+    .macOS("26.0"),
+    .iOS("26.0"),
   ],
   products: [
     .library(name: "NativeApp", targets: ["NativeApp"])
@@ -30,11 +30,16 @@ package.dependencies += [
   // Hummingbird
   .package(url: "https://github.com/hummingbird-project/hummingbird.git", from: "2.16.0"),
   .package(url: "https://github.com/hummingbird-project/hummingbird-websocket.git", from: "2.2.0"),
+  .package(url: "https://github.com/hummingbird-community/hummingbird-elementary.git", from: "0.4.2"),
   // Vapor
   .package(url: "https://github.com/vapor/postgres-nio.git", from: "1.27.0"),
   // Pointfree.co
   .package(url: "https://github.com/pointfreeco/swift-composable-architecture.git", from: "1.22.0"),
   .package(url: "https://github.com/pointfreeco/swift-dependencies.git", from: "1.9.0"),
+  // Elementary
+  .package(url: "https://github.com/elementary-swift/elementary-ui.git", from: "0.1.0"),
+  .package(url: "https://github.com/elementary-swift/elementary.git", from: "0.6.0"),
+  .package(url: "https://github.com/elementary-swift/elementary-htmx", branch: "main"),
 ]
 
 package.targets += [
@@ -94,10 +99,16 @@ package.targets += [
   .target(
     name: "WebApp",
     dependencies: [
-      "Client",
-      .product(name: "ComposableArchitecture", package: "swift-composable-architecture"),
-      .product(name: "Dependencies", package: "swift-dependencies"),
-      .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+      "Models",
+      "Persistence",
+      .product(name: "Hummingbird", package: "hummingbird"),
+      .product(name: "HummingbirdElementary", package: "hummingbird-elementary"),
+      .product(name: "Elementary", package: "elementary"),
+      .product(name: "ElementaryHTMX", package: "elementary-htmx"),
+      .product(name: "ElementaryHTMXWS", package: "elementary-htmx"),
+    ],
+    resources: [
+      .copy("Public")
     ],
     swiftSettings: [
       .enableUpcomingFeature("NonisolatedNonsendingByDefault"),
@@ -123,6 +134,7 @@ package.targets += [
       .product(name: "Dependencies", package: "swift-dependencies"),
       .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
       "Backend",
+      "WebApp",
     ]
   ),
 ]
