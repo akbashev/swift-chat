@@ -4,6 +4,7 @@ import Distributed
 import DistributedCluster
 import Foundation
 import Hummingbird
+import HummingbirdAuth
 import HummingbirdWSCompression
 import HummingbirdWebSocket
 import Models

@@ -74,9 +74,12 @@ public distributed actor Room {
   public init(
     actorSystem: ClusterSystem,
     info: Room.Info
-  ) async {
+  ) async throws {
     self.actorSystem = actorSystem
     self.state = .init(info: info)
+    try await actorSystem
+      .journal
+      .register(actor: self, with: info.name)
   }
 
   private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
@@ -113,9 +116,6 @@ extension Room: EventSourced {
 }
 
 extension Room: VirtualActor {
-
-  distributed public var persistenceID: PersistenceID { self.info.name }
-
   public static func spawn(
     on actorSystem: DistributedCluster.ClusterSystem,
     dependency: any Sendable & Codable
@@ -124,7 +124,7 @@ extension Room: VirtualActor {
     guard let dependency = dependency as? Room.Info else {
       throw VirtualActorError.spawnDependencyTypeMismatch
     }
-    return await Room(
+    return try await Room(
       actorSystem: actorSystem,
       info: dependency
     )
