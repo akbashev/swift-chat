@@ -4,11 +4,13 @@ import EventSourcing
 import Foundation
 import VirtualActors
 
+@EventSourced @VirtualActor
 public distributed actor Room {
 
   public typealias ActorSystem = ClusterSystem
+  public typealias Dependency = Room.Info
 
-  private var state: State
+  public var state: State
 
   distributed public var info: Room.Info {
     self.state.info
@@ -73,13 +75,13 @@ public distributed actor Room {
 
   public init(
     actorSystem: ClusterSystem,
-    info: Room.Info
+    dependency: Dependency
   ) async throws {
     self.actorSystem = actorSystem
-    self.state = .init(info: info)
+    self.state = .init(info: dependency)
     try await actorSystem
       .journal
-      .register(actor: self, with: info.name)
+      .register(actor: self, with: dependency.name)
   }
 
   private func notifyEveryoneAbout(_ envelope: MessageEnvelope) async {
@@ -99,7 +101,7 @@ public distributed actor Room {
   }
 }
 
-extension Room: EventSourced {
+extension Room {
   distributed public func handleEvent(_ event: Event) {
     switch event {
     case .participantDid(let action, let participantInfo):
@@ -112,21 +114,5 @@ extension Room: EventSourced {
           )
         )
     }
-  }
-}
-
-extension Room: VirtualActor {
-  public static func spawn(
-    on actorSystem: DistributedCluster.ClusterSystem,
-    dependency: any Sendable & Codable
-  ) async throws -> Room {
-    /// A bit of boilerplate to check type until (associated type error)[https://github.com/swiftlang/swift/issues/74769] is fixed
-    guard let dependency = dependency as? Room.Info else {
-      throw VirtualActorError.spawnDependencyTypeMismatch
-    }
-    return try await Room(
-      actorSystem: actorSystem,
-      info: dependency
-    )
   }
 }

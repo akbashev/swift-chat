@@ -19,6 +19,7 @@ package.dependencies += [
   .package(url: "https://github.com/apple/swift-distributed-actors.git", branch: "main"),
   .package(url: "https://github.com/akbashev/cluster-virtual-actors.git", branch: "main"),
   .package(url: "https://github.com/akbashev/cluster-event-sourcing.git", branch: "main"),
+  .package(url: "https://github.com/akbashev/postgres-event-store.git", branch: "main"),
   // Apple
   .package(url: "https://github.com/apple/swift-argument-parser.git", from: "1.6.0"),
   .package(url: "https://github.com/apple/swift-openapi-generator.git", from: "1.10.0"),
@@ -124,6 +125,7 @@ package.targets += [
       .product(name: "ArgumentParser", package: "swift-argument-parser"),
       .product(name: "Dependencies", package: "swift-dependencies"),
       .product(name: "AsyncAlgorithms", package: "swift-async-algorithms"),
+      .product(name: "PostgresEventStore", package: "postgres-event-store"),
       "Backend",
       "WebApp",
     ]

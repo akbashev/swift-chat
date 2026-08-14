@@ -47,10 +47,10 @@ extension Room {
     case participantAlreadyJoined
   }
 
-  struct State {
-    let info: Room.Info
-    var messages: [MessageEnvelope] = []
-    var onlineParticipants: Set<Participant> = .init()
+  public struct State: Codable, Sendable {
+    public let info: Room.Info
+    public var messages: [MessageEnvelope] = []
+    public var onlineParticipants: Set<Participant> = .init()
 
     public init(
       info: Room.Info

@@ -5,6 +5,7 @@ import EventSourcing
 import Foundation
 import Hummingbird
 import Persistence
+import PostgresEventStore
 import VirtualActors
 
 typealias DefaultDistributedActorSystem = ClusterSystem
@@ -14,7 +15,7 @@ struct App: AsyncParsableCommand {
 
   /**
    For simplicity you can just run `standalone` node, which will run all other nodes (frontend, room) + database.
-  
+
    If you want to run them seperately you need to form a cluster. To achive that—start with some first one,
    in swift distributed actors there is not difference which one it should be, for simplicity it's `frontend` now.
    Run it with default host. After that you can run room node with other port (e.g. 2551) and etc.,
@@ -83,13 +84,11 @@ extension App {
     //      host: self.host,
     //      environment: env
     //    ).generate()
-    //    let store = try await PostgresEventStore(
-    //      connection: .connect(
-    //        configuration: config,
-    //        id: 2,
-    //        logger: .init(label: "event-source-postgres-logger")
-    //      )
+    //    /// `PostgresClient` is a `Service`—run it alongside the node (e.g. in a `ServiceGroup`).
+    //    let store = PostgresEventStore(
+    //      client: PostgresClient(configuration: config)
     //    )
+    //    try await store.setupDatabase()
     let plugins: [any Plugin] = [
       ClusterSingletonPlugin(),
       ClusterVirtualActorsPlugin(),

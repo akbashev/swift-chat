@@ -1,5 +1,5 @@
 {
-  "originHash" : "dc6aa677f899cba50e640350ee5a64be07e6ef657223c5bfc274e1cc09eb56be",
+  "originHash" : "fbcdf72ccd2afcb92619e77a25132f6617dc57998b709a429ea425c5e6ecdb46",
   "pins" : [
     {
       "identity" : "async-http-client",
@@ -16,7 +16,7 @@
       "location" : "https://github.com/akbashev/cluster-event-sourcing.git",
       "state" : {
         "branch" : "main",
-        "revision" : "938617749a54410a4cb95c8d802e7107a241d298"
+        "revision" : "4820b5553b78e87a69d63e13a411ac12ba735995"
       }
     },
     {
@@ -25,7 +25,7 @@
       "location" : "https://github.com/akbashev/cluster-virtual-actors.git",
       "state" : {
         "branch" : "main",
-        "revision" : "d8cea211882fe571c3c576be566c002004ea74db"
+        "revision" : "99c1eba0c65f77de827b141760c0f41fc6719df7"
       }
     },
     {
@@ -137,6 +137,15 @@
       }
     },
     {
+      "identity" : "postgres-event-store",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/akbashev/postgres-event-store.git",
+      "state" : {
+        "branch" : "main",
+        "revision" : "5ced2fb3292d153e5a3cf2b03553c0848e5abe22"
+      }
+    },
+    {
       "identity" : "postgres-nio",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/vapor/postgres-nio.git",
@@ -177,8 +186,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/apple/swift-async-algorithms.git",
       "state" : {
-        "revision" : "6c050d5ef8e1aa6342528460db614e9770d7f804",
-        "version" : "1.1.1"
+        "revision" : "9d349bcc328ac3c31ce40e746b5882742a0d1272",
+        "version" : "1.1.3"
       }
     },
     {
@@ -249,8 +258,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-composable-architecture.git",
       "state" : {
-        "revision" : "5b0890fabfd68a2d375d68502bc3f54a8548c494",
-        "version" : "1.23.1"
+        "revision" : "ead11e04e5011c437722c1990d22f80d87056978",
+        "version" : "1.26.1"
       }
     },
     {
@@ -375,8 +384,8 @@
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/pointfreeco/swift-navigation",
       "state" : {
-        "revision" : "bf498690e1f6b4af790260f542e8428a4ba10d78",
-        "version" : "2.6.0"
+        "revision" : "32f35241b8be0719c4c7f00eb27713b1cadb6248",
+        "version" : "2.8.0"
       }
     },
     {
